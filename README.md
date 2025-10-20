@@ -184,6 +184,9 @@ local UNDO_LIMIT = 25              -- Max undo stack size
 - Cached CFrame lookups
 - Overall: 8-15% CPU reduction
 
+**Bug Fixes:**
+- Prediction spheres no longer call `.Enabled` on parts; visibility now uses transparency with anchored, non-collidable spheres to eliminate console spam during SB Totem activation
+
 **Maintained:**
 - All original functionality
 - All keybinds unchanged

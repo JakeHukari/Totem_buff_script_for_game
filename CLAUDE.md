@@ -160,6 +160,7 @@ local SKY_MODE_ENABLED = false     -- Sky Mode off at startup
 - `pcall()` protection around risky operations
 - `dead` state check prevents execution after shutdown
 - `gp` (game processed) parameter prevents double-input
+- `setPredictionZoneVisible()` controls prediction spheres; never toggle `Part.Enabled` (property does not exist)
 
 ### State Lifecycle
 

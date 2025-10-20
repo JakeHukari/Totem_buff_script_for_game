@@ -65,6 +65,7 @@ local ORANGE = Color3.fromRGB(255,165,0)
 local CLOSEST_COLOR = Color3.fromRGB(255, 20, 20)  -- Bright red for closest player
 local GRADIENT_MIN_DIST = 30   -- Distance where gradient starts (close = warmer)
 local GRADIENT_MAX_DIST = 250  -- Distance where gradient ends (far = cooler)
+local PREDICTION_ZONE_TRANSPARENCY = 0.7  -- Visible transparency for prediction spheres
 
 -- Additional UI colors (cached)
 local BG_DARK = Color3.fromRGB(15,15,15)
@@ -806,10 +807,25 @@ local function updateProximityAlert(p, data)
 	end
 end
 
+local function setPredictionZoneVisible(zone, visible)
+	if not zone then
+		return
+	end
+
+	local desiredTransparency = visible and PREDICTION_ZONE_TRANSPARENCY or 1
+	if zone.Transparency ~= desiredTransparency then
+		zone.Transparency = desiredTransparency
+	end
+
+	if visible and zone.Parent ~= Workspace then
+		zone.Parent = Workspace
+	end
+end
+
 -- Prediction Zones (circles showing likely player position in future)
 local function updatePredictionZone(p, data)
 	if not PREDICTION_ZONES_ENABLED or not data.root then
-		if data.predictionZone then data.predictionZone.Enabled = false end
+		setPredictionZoneVisible(data.predictionZone, false)
 		return
 	end
 
@@ -817,7 +833,7 @@ local function updatePredictionZone(p, data)
 	local speed = vel.Magnitude
 
 	if speed < 0.5 then
-		if data.predictionZone then data.predictionZone.Enabled = false end
+		setPredictionZoneVisible(data.predictionZone, false)
 		return
 	end
 
@@ -825,12 +841,16 @@ local function updatePredictionZone(p, data)
 		local zone = Instance.new("Part")
 		zone.Name = "PredZone_" .. p.UserId
 		zone.Shape = Enum.PartType.Ball
+		zone.Anchored = true
 		zone.CanCollide = false
+		zone.CanTouch = false
+		zone.CanQuery = false
+		zone.CastShadow = false
 		zone.CFrame = data.root.CFrame
 		zone.TopSurface = Enum.SurfaceType.Smooth
 		zone.BottomSurface = Enum.SurfaceType.Smooth
 		zone.Material = Enum.Material.Glass
-		zone.Transparency = 0.7
+		zone.Transparency = PREDICTION_ZONE_TRANSPARENCY
 		zone.Color = CYAN
 		zone.Parent = Workspace
 		data.predictionZone = zone
@@ -841,7 +861,7 @@ local function updatePredictionZone(p, data)
 		local predictedPos = data.root.Position + (vel * 0.5)
 		data.predictionZone.Position = predictedPos
 		data.predictionZone.Size = Vector3.new(5, 5, 5)  -- 5 stud radius for prediction uncertainty
-		data.predictionZone.Enabled = true
+		setPredictionZoneVisible(data.predictionZone, true)
 	end
 end
 
