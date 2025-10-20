@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -lh /mnt/c/Users/Jake/Documents/GitHub/Totem_buff_script_for_game/*.{lua,md})"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

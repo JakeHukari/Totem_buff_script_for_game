@@ -8,49 +8,83 @@ This repository contains **SP3ARBR3AK3R** - a totem power system for a competiti
 
 **Critical Context:** This is an intentional game feature for a game created by this development team. The powerful detection/tracking capabilities are deliberate design choices to reward players who spend 1-2+ hours competing for the totem. See DEVELOPER_CONTEXT.md for full design rationale.
 
+## Repository Structure
+
+**Keep it simple: 1 script + 3 docs**
+
+```
+📁 Totem_buff_script_for_game/
+├── 📜 sp3arbr3ak3r.lua          ⭐ Main script (always latest working version)
+├── 📄 README.md                 📖 User documentation
+├── 📄 CLAUDE.md                 🤖 This file - instructions for Claude Code
+└── 📄 DEVELOPER_CONTEXT.md      💭 Design philosophy
+```
+
+### File Guidelines
+
+**Main Script (`sp3arbr3ak3r.lua`):**
+- Always the latest working version
+- Never create versioned copies (e.g., v1, v2, _old, _backup)
+- Update in place
+- Document version changes in README.md Version History section
+
+**Documentation:**
+- **README.md** - User-facing: features, controls, installation, troubleshooting
+- **DEVELOPER_CONTEXT.md** - Design rationale and game balance philosophy
+- **CLAUDE.md** - This file, instructions for AI assistance
+
+**When updating documentation:**
+- ✅ Update existing files
+- ❌ Never create new .md files
+- ❌ Never create version-specific docs (e.g., CHANGES_v2.md)
+
+**When experimenting:**
+- Feel free to create temporary test files
+- ⚠️ Always clean up after testing
+- Delete experimental scripts before committing
+
 ## Code Structure
 
-### Main Files
-- `SP3ARBR3AK3R_v3.lua` - The complete totem power system implementation (632 lines)
-- `DEVELOPER_CONTEXT.md` - Essential design documentation explaining the system's purpose and balance
+### Main Script: `sp3arbr3ak3r.lua`
 
-### Architecture (Lua/Roblox)
+**Core Components:**
 
-The system is built as a Roblox Lua script with these core components:
-
-**Services Layer** (lines 160-167)
-- Uses Roblox services: Players, RunService, UserInputService, Workspace, Lighting, etc.
+**Services** (lines ~15-23)
+- Roblox services: Players, RunService, UserInputService, Workspace, Lighting, etc.
 - Manages game state and player interactions
 
-**Configuration System** (lines 106-155)
-- `CONFIG` table contains all tunable parameters
-- Organized by category: AutoClick, ESP, Visual, Detection, Raycast, UI
-- Modern theme system with professional color palette (v3.0)
+**Configuration** (lines ~40-60)
+- Feature defaults: `ESP_ENABLED`, `CLICKBREAK_ENABLED`, `AUTOCLICK_ENABLED`, `SKY_MODE_ENABLED`
+- Tunable parameters: `AUTOCLICK_CPS`, `RAYCAST_MAX_DISTANCE`, `UNDO_LIMIT`
+- Color gradient settings: `GRADIENT_MIN_DIST`, `GRADIENT_MAX_DIST`
 
 **State Management**
-- Feature toggles: `ESP_ENABLED`, `CLICKBREAK_ENABLED`, `AUTOCLICK_ENABLED`, `SKY_MODE_ENABLED`
+- Feature toggles control system behavior
 - Per-player tracking via `perPlayer` table
-- Connection tracking for cleanup via `connections` array
+- Connection tracking for cleanup via `binds` array
+- Broken part tracking via `brokenSet` and `undoStack`
 
-**UI System** (lines 292-486)
-- Modern panel-based interface (v3.0 redesign)
-- Three main panels: Threat Monitor, Controls, Totem History
-- Radar display in bottom-right
-- Professional color palette with muted grays and subtle accents
+**UI System**
+- Guide panel showing feature status
+- Toggle dots (green = on, red = off)
+- Waypoint scroll list
+- Edge indicators for off-screen targets
 
-**Update Loop** (lines 546-579)
-- Heartbeat-based main loop with delta time
-- Throttled updates using `runUpdate()` helper
-- Efficient player proximity detection
-- Real-time threat display updates
+**Update Loop** (Heartbeat connection)
+- Throttled updates using interval runners
+- Nearest player detection: 0.05s
+- Visual updates: 0.1s
+- Cleanup sweep: 2s
+- UI refresh: 0.1s
 
-**Keyboard Controls** (lines 489-543)
+**Keyboard Controls**
 - Ctrl+E: Toggle ESP
-- Ctrl+C: Toggle AutoClick
+- Ctrl+Enter: Toggle Br3ak3r
+- Ctrl+K: Toggle AutoClick
 - Ctrl+L: Toggle Sky Mode
-- Ctrl+H: Toggle UI visibility
+- Ctrl+Z: Undo last broken part
+- Ctrl+MMB: Add/Remove waypoint
 - Ctrl+6: Full system shutdown
-- Dispatch table pattern for O(1) keybind lookup
 
 ## Development Workflow
 
@@ -60,25 +94,35 @@ Since this is a Roblox Lua script, testing requires the Roblox Studio environmen
 
 1. Open Roblox Studio
 2. Load your game project
-3. Insert the script into StarterPlayer.StarterPlayerScripts or ServerScriptService
+3. Insert the script into `StarterPlayer.StarterPlayerScripts` or `StarterGui`
 4. Run the game in Studio (F5)
-5. Test totem acquisition and power activation
+5. Test features using keybinds
 
 ### Making Changes
 
 **Configuration Changes:**
-- Modify values in the `CONFIG` table (lines 106-155)
-- No code changes needed for balance adjustments
-- Example: Adjust `AUTOCLICK_CPS`, `ESP_THREAT_RANGE`, `RADAR_SIZE`
+```lua
+-- Edit these values at the top of sp3arbr3ak3r.lua
+local AUTOCLICK_CPS = 25           -- Adjust click speed
+local GRADIENT_MIN_DIST = 30       -- Color gradient close range
+local GRADIENT_MAX_DIST = 250      -- Color gradient far range
+```
 
-**UI/Visual Changes:**
-- Color palette defined in `COLORS` table (lines 180-205)
-- Panel creation via `createPanel()` helper (lines 299-341)
-- Modern styling with corner radius and borders
+**Color Adjustments:**
+```lua
+-- Cached Color3 constants (lines ~50-68)
+local CLOSEST_COLOR = Color3.fromRGB(255, 20, 20)  -- Brightest player
+-- Modify getDistanceColor() function for gradient tweaks
+```
 
-**Feature Toggles:**
-- Default states set in lines 172-175
-- Runtime toggles via keyboard shortcuts or UI buttons
+**Feature Defaults:**
+```lua
+-- Lines ~25-28
+local ESP_ENABLED = true           -- ESP on at startup
+local CLICKBREAK_ENABLED = true    -- Br3ak3r on at startup
+local AUTOCLICK_ENABLED = false    -- AutoClick off at startup
+local SKY_MODE_ENABLED = false     -- Sky Mode off at startup
+```
 
 ### Code Organization Patterns
 
@@ -88,47 +132,54 @@ Since this is a Roblox Lua script, testing requires the Roblox Studio environmen
 - Critical for script reload/shutdown
 
 **Update Throttling:**
-- `updateCounter` and `updateIntervals` tables control update frequency
-- `runUpdate(dt, name)` helper prevents over-updating
-- Different rates for: nearest detection, visual updates, culling, radar, cleanup
+- `makeIntervalRunner(interval)` creates throttle functions
+- Different rates for different systems
+- Prevents over-updating and reduces CPU usage
 
-**Debouncing:**
-- Toggle debouncing via `canToggle()` prevents rapid key spam
-- Default debounce time: 0.15s
+**Performance Optimizations:**
+- Reusable `raycastParams` (single instance)
+- Cached globals: `abs`, `floor`, `max`, `min`, `clamp`
+- Cached Color3 constants
+- Indexed loops instead of iterator functions
+- Cached property lookups (e.g., `cameraCFrame`)
 
 ## Key Technical Details
 
-### Performance Optimizations (v3.0)
+### Performance Features
 
-- Disabled animations (`ENABLE_ANIMATIONS = false`)
-- Disabled glow effects for cleaner look
-- Distance calculations use squared distances to avoid sqrt
-- Update throttling reduces unnecessary processing
-- Efficient dispatch tables for keybinds
+- **RaycastParams reuse** - Single instance reduces GC pressure
+- **Local function caching** - Faster than global table lookups
+- **Color constants** - Pre-allocated Color3 objects
+- **Optimized loops** - Indexed iteration 5-10% faster
+- **Update throttling** - Reduces unnecessary processing
+- **Property caching** - Stores frequently accessed properties
 
 ### Safety Patterns
 
 - `safeDestroy()` wrapper for safe object cleanup
 - `pcall()` protection around risky operations
-- Dead state check prevents execution after shutdown
-- Game process input guard (`gp` parameter) prevents double-input
+- `dead` state check prevents execution after shutdown
+- `gp` (game processed) parameter prevents double-input
 
 ### State Lifecycle
 
-1. **Initialization** (lines 584-614)
-   - Validates all UI components exist
-   - Checks service availability
-   - Sets up character respawn handling
+1. **Initialization**
+   - Services loaded
+   - GUI created
+   - State variables initialized
+   - Event connections bound
 
 2. **Runtime**
    - Heartbeat loop processes game state
    - Keyboard input handlers respond to controls
    - UI updates reflect system status
+   - Players tracked via CharacterAdded
 
-3. **Cleanup** (lines 617-622)
-   - `game:BindToClose()` ensures proper shutdown
-   - Disconnects all event listeners
-   - Destroys UI elements
+3. **Cleanup** (Ctrl+6 or script stop)
+   - `disconnectAll()` removes event listeners
+   - `destroyAll()` removes GUI elements
+   - State variables cleared
+   - Broken parts restored (via undo)
 
 ## Design Philosophy
 
@@ -140,42 +191,53 @@ The totem grants powerful detection/tracking because:
 - The strength creates ongoing competitive loops
 - Built-in counterplay exists (visibility, targeting, teamwork)
 
-This is intentional game design, not a bug or exploit.
+This is **intentional game design**, not a bug or exploit.
 
-### Version History Context
-
-- **v2.5**: Neon-themed UI with heavy animations
-- **v3.0** (current): Professional UI redesign
-  - 40-50% GPU/CPU performance improvement
-  - Removed bounce/pulse effects
-  - Muted color palette
-  - Same core functionality
+See `DEVELOPER_CONTEXT.md` for complete design rationale.
 
 ## Important Notes
 
 ### When Modifying Code
 
-1. **Preserve the competitive balance** - Changes should maintain the totem's desirability
-2. **Test in full game context** - Powers are balanced for 1-2 hour competition cycles
-3. **Update DEVELOPER_CONTEXT.md** - Keep design rationale documentation current
-4. **Performance matters** - This runs continuously while totem is held
+1. **Preserve competitive balance** - Changes should maintain totem desirability
+2. **Test in full game context** - Powers balanced for 1-2 hour competition cycles
+3. **Update README.md Version History** - Document all changes
+4. **Performance matters** - Script runs continuously during gameplay
 
 ### Common Modification Scenarios
 
 **Adjusting Power Strength:**
-- Modify `CONFIG` values for detection ranges, update frequencies
+- Modify configuration constants (CPS, ranges, distances)
 - Consider impact on competition incentive
-- Consult design team before major changes
+- Test balance in real gameplay scenarios
 
-**UI Customization:**
-- Edit `COLORS` table for theme changes
-- Adjust panel positions/sizes in createPanel() calls
-- Maintain readability during gameplay
+**Color Customization:**
+- Edit cached Color3 constants
+- Modify `getDistanceColor()` gradient function
+- Adjust `GRADIENT_MIN_DIST` / `GRADIENT_MAX_DIST`
 
 **Adding New Features:**
-- Follow existing patterns (toggles, debouncing, cleanup tracking)
-- Add to keyboard dispatch table if adding keybinds
-- Document in header comments
+- Follow existing patterns (toggles, cleanup tracking)
+- Add keybind to input handler
+- Update UI guide panel
+- Document in README.md
+
+### Repository Maintenance Rules
+
+**DO:**
+- ✅ Update `sp3arbr3ak3r.lua` in place
+- ✅ Update README.md Version History section
+- ✅ Update DEVELOPER_CONTEXT.md if design changes
+- ✅ Test thoroughly before committing
+- ✅ Clean up experimental files
+
+**DON'T:**
+- ❌ Create versioned script copies (v2, v3, _old, etc.)
+- ❌ Create new documentation files
+- ❌ Leave experimental/test files in repo
+- ❌ Commit broken/untested code
+
+**Golden Rule:** 1 script file + 3 documentation files = clean repo
 
 ## Questions & Context
 
@@ -185,3 +247,5 @@ If you're unsure about design decisions, read DEVELOPER_CONTEXT.md first. It add
 - How it fits in the game's competitive loop
 - Counterplay mechanics
 - Future modification guidelines
+
+For user-facing questions, check README.md first.
