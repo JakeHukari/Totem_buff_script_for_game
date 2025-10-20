@@ -41,6 +41,10 @@ local ESP_ENABLED = true
 local CLICKBREAK_ENABLED = true      -- shown as "Br3ak3r" in UI
 local AUTOCLICK_ENABLED = false
 local SKY_MODE_ENABLED = false
+local PREDICTION_VECTORS_ENABLED = true
+local TARGETING_ASSIST_ENABLED = false
+local PROXIMITY_ALERTS_ENABLED = true
+local PREDICTION_ZONES_ENABLED = true
 
 local AUTOCLICK_CPS = 25
 local AUTOCLICK_INTERVAL = 1 / AUTOCLICK_CPS
@@ -53,6 +57,9 @@ local RED   = Color3.fromRGB(255,0,0)
 local GREEN = Color3.fromRGB(0,200,0)
 local WHITE = Color3.fromRGB(255,255,255)
 local GRAY  = Color3.fromRGB(200,200,200)
+local CYAN  = Color3.fromRGB(0,255,255)
+local YELLOW = Color3.fromRGB(255,255,0)
+local ORANGE = Color3.fromRGB(255,165,0)
 
 -- Distance-based color gradient (for nametags)
 local CLOSEST_COLOR = Color3.fromRGB(255, 20, 20)  -- Bright red for closest player
@@ -117,7 +124,7 @@ local wpNameIndex = 0
 local indicatorFolder
 
 -- Toggle UI setters
-local setDotESP, setDotCB, setDotAC, setDotSKY
+local setDotESP, setDotCB, setDotAC, setDotSKY, setDotPV, setDotTA, setDotPA, setDotPZ
 
 -- Hover highlight (Br3ak3r)
 local hoverHL
@@ -133,6 +140,8 @@ raycastParams.IgnoreWater = true
 -- Cached format strings for performance
 local FORMAT_NAME_DIST_HP = "%s  •  %dm  •  %dhp"
 local FORMAT_NAME_DIST = "%s · %dm"
+local FORMAT_NAME_DIST_TOOL_HP = "%s [%s]  •  %dm  •  %dhp"
+local FORMAT_NAME_DIST_TOOL = "%s [%s] · %dm"
 
 -- Custom clamp for Lua 5.1 compatibility (if needed)
 local function customClamp(v, lo, hi)
@@ -322,7 +331,7 @@ local function ensureGuide()
 		local togglesSection = track(Instance.new("Frame"))
 		togglesSection.BackgroundTransparency = 1
 		togglesSection.Position = UDim2.new(0,0,0,22)
-		togglesSection.Size = UDim2.new(1,0,0,80)
+		togglesSection.Size = UDim2.new(1,0,0,160)
 		togglesSection.Parent = guideFrame
 
 		local list = track(Instance.new("UIListLayout")); list.FillDirection=Enum.FillDirection.Vertical; list.SortOrder=Enum.SortOrder.LayoutOrder; list.Padding=UDim.new(0,2); list.Parent=togglesSection
@@ -331,12 +340,16 @@ local function ensureGuide()
 		local r2, s2 = mkToggleRow("Br3ak3r","Ctrl+Enter"); r2.Parent = togglesSection; setDotCB = s2
 		local r3, s3 = mkToggleRow("AutoClick","Ctrl+K"); r3.Parent = togglesSection; setDotAC = s3
 		local r4, s4 = mkToggleRow("Sky Mode","Ctrl+L"); r4.Parent = togglesSection; setDotSKY = s4
+		local r5, s5 = mkToggleRow("PredVectors","Ctrl+V"); r5.Parent = togglesSection; setDotPV = s5
+		local r6, s6 = mkToggleRow("TargetAssist","Ctrl+T"); r6.Parent = togglesSection; setDotTA = s6
+		local r7, s7 = mkToggleRow("ProxAlerts","Ctrl+A"); r7.Parent = togglesSection; setDotPA = s7
+		local r8, s8 = mkToggleRow("PredZones","Ctrl+P"); r8.Parent = togglesSection; setDotPZ = s8
 
-		local sep = track(Instance.new("Frame")); sep.Size=UDim2.new(1,0,0,1); sep.Position=UDim2.new(0,0,0,22+80+6); sep.BackgroundColor3=SEPARATOR_GRAY; sep.BorderSizePixel=0; sep.Parent=guideFrame
+		local sep = track(Instance.new("Frame")); sep.Size=UDim2.new(1,0,0,1); sep.Position=UDim2.new(0,0,0,22+160+6); sep.BackgroundColor3=SEPARATOR_GRAY; sep.BorderSizePixel=0; sep.Parent=guideFrame
 
 		local listTitle = Instance.new("TextLabel")
 		listTitle.BackgroundTransparency = 1
-		listTitle.Position = UDim2.new(0,0,0,22+80+10)
+		listTitle.Position = UDim2.new(0,0,0,22+160+10)
 		listTitle.Size = UDim2.new(1,0,0,16)
 		listTitle.Text = "Waypoints:"
 		listTitle.TextColor3 = TEXT_GRAY
@@ -350,8 +363,8 @@ local function ensureGuide()
 		wpScroll.Name = "WPScroll"
 		wpScroll.BackgroundTransparency = 1
 		wpScroll.BorderSizePixel = 0
-		wpScroll.Position = UDim2.new(0,0,0,22+80+28)
-		wpScroll.Size = UDim2.new(1,0,1,-(22+80+36))
+		wpScroll.Position = UDim2.new(0,0,0,22+160+28)
+		wpScroll.Size = UDim2.new(1,0,1,-(22+160+36))
 		wpScroll.ScrollBarThickness = 4
 		wpScroll.CanvasSize = UDim2.new(0,0,0,0)
 		wpScroll.ZIndex = 1001
@@ -366,6 +379,10 @@ local function updateToggleDots()
 	if setDotCB then setDotCB(CLICKBREAK_ENABLED) end
 	if setDotAC then setDotAC(AUTOCLICK_ENABLED) end
 	if setDotSKY then setDotSKY(SKY_MODE_ENABLED) end
+	if setDotPV then setDotPV(PREDICTION_VECTORS_ENABLED) end
+	if setDotTA then setDotTA(TARGETING_ASSIST_ENABLED) end
+	if setDotPA then setDotPA(PROXIMITY_ALERTS_ENABLED) end
+	if setDotPZ then setDotPZ(PREDICTION_ZONES_ENABLED) end
 end
 
 -- Rays
@@ -588,6 +605,9 @@ local function destroyPerPlayer(p)
 		hideIndicator(pp.indicator)
 		safeDestroy(pp.indicator)
 	end
+	if pp.predictionVector then safeDestroy(pp.predictionVector) end
+	if pp.proximityAlert then safeDestroy(pp.proximityAlert) end
+	if pp.predictionZone then safeDestroy(pp.predictionZone) end
 	perPlayer[p] = nil
 end
 
@@ -604,6 +624,12 @@ local function createOutlineForCharacter(character, enabled)
 	return h
 end
 
+local function getEquippedTool(character)
+	local tool = character:FindFirstChildOfClass("Tool")
+	if tool then return tool.Name end
+	return nil
+end
+
 local function billboardFor(p, character)
 	local head = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
 	local hum = character:FindFirstChildOfClass("Humanoid"); if not head or not hum then return end
@@ -616,6 +642,7 @@ local function billboardFor(p, character)
 	entry.bill = bill
 	entry.text = t
 	entry.hum = hum
+	entry.tool = getEquippedTool(character)
 	entry.cache = entry.cache or {}
 	perPlayer[p] = entry
 end
@@ -660,6 +687,162 @@ local function updateNearestPlayer()
 		end
 	end
 	nearestPlayerRef = best
+end
+
+-- Prediction Vector (velocity visualization)
+local function ensurePredictionVector(p, root)
+	local pp = perPlayer[p]
+	if not pp then return end
+	if not pp.predictionVector then
+		local beam = Instance.new("Beam")
+		beam.Name = "PredVector_" .. p.UserId
+		beam.Transparency = NumberSequence.new(0.3)
+		beam.Width0 = 0.2
+		beam.Width1 = 0.2
+		beam.Parent = Workspace
+		pp.predictionVector = beam
+		pp.predVecAttach0 = Instance.new("Attachment")
+		pp.predVecAttach0.Parent = root
+		pp.predVecAttach1 = Instance.new("Attachment")
+		pp.predVecAttach1.Parent = Workspace
+		beam.Attachment0 = pp.predVecAttach0
+		beam.Attachment1 = pp.predVecAttach1
+	end
+	return pp.predictionVector
+end
+
+local function updatePredictionVector(p, data)
+	if not PREDICTION_VECTORS_ENABLED or not data.root then
+		if data.predictionVector then data.predictionVector.Enabled = false end
+		return
+	end
+	local beam = ensurePredictionVector(p, data.root)
+	if not beam then return end
+
+	local vel = data.root.AssemblyLinearVelocity
+	local speed = vel.Magnitude
+
+	if speed > 0.5 then
+		-- Scale the vector based on speed (normalized to 50 studs max)
+		local vizLength = min(speed / 20, 50)
+		local vizDir = vel.Unit
+
+		if data.predVecAttach1 then
+			data.predVecAttach1.Position = vizDir * vizLength
+		end
+
+		-- Color based on speed
+		local speedRatio = min(speed / 100, 1)
+		local beamColor = Color3.new(
+			1,
+			max(0, 1 - speedRatio * 2),
+			max(0, 1 - speedRatio)
+		)
+		beam.Color = ColorSequence.new(beamColor)
+		beam.Enabled = true
+	else
+		beam.Enabled = false
+	end
+end
+
+-- Proximity Alerts (visual warnings at distance tiers)
+local PROXIMITY_TIERS = {
+	{dist=50, color=RED, name="DANGER"},
+	{dist=100, color=ORANGE, name="ALERT"},
+	{dist=200, color=YELLOW, name="NEAR"},
+}
+
+local function updateProximityAlert(p, data)
+	if not PROXIMITY_ALERTS_ENABLED then
+		if data.proximityAlert then data.proximityAlert.Visible = false end
+		return
+	end
+
+	local myChar = localPlayer.Character
+	local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+	if not myRoot or not data.root then
+		if data.proximityAlert then data.proximityAlert.Visible = false end
+		return
+	end
+
+	local dist = (myRoot.Position - data.root.Position).Magnitude
+	local alertColor = nil
+	local alertText = nil
+
+	for _, tier in ipairs(PROXIMITY_TIERS) do
+		if dist <= tier.dist then
+			alertColor = tier.color
+			alertText = tier.name
+			break
+		end
+	end
+
+	if not alertColor then
+		if data.proximityAlert then data.proximityAlert.Visible = false end
+		return
+	end
+
+	if not data.proximityAlert then
+		local alert = Instance.new("TextLabel")
+		alert.Name = "ProxAlert_" .. p.UserId
+		alert.BackgroundTransparency = 0.2
+		alert.BackgroundColor3 = alertColor
+		alert.BorderSizePixel = 0
+		alert.Size = UDim2.fromOffset(80, 20)
+		alert.Position = UDim2.fromOffset(10, 10 + (p.UserId % 3) * 25)
+		alert.Font = Enum.Font.GothamBold
+		alert.TextSize = 12
+		alert.TextColor3 = WHITE
+		alert.ZIndex = 500
+		alert.Parent = screenGui
+		data.proximityAlert = alert
+		track(alert)
+	end
+
+	if data.proximityAlert then
+		data.proximityAlert.Text = alertText
+		data.proximityAlert.BackgroundColor3 = alertColor
+		data.proximityAlert.Visible = true
+	end
+end
+
+-- Prediction Zones (circles showing likely player position in future)
+local function updatePredictionZone(p, data)
+	if not PREDICTION_ZONES_ENABLED or not data.root then
+		if data.predictionZone then data.predictionZone.Enabled = false end
+		return
+	end
+
+	local vel = data.root.AssemblyLinearVelocity
+	local speed = vel.Magnitude
+
+	if speed < 0.5 then
+		if data.predictionZone then data.predictionZone.Enabled = false end
+		return
+	end
+
+	if not data.predictionZone then
+		local zone = Instance.new("Part")
+		zone.Name = "PredZone_" .. p.UserId
+		zone.Shape = Enum.PartType.Ball
+		zone.CanCollide = false
+		zone.CFrame = data.root.CFrame
+		zone.TopSurface = Enum.SurfaceType.Smooth
+		zone.BottomSurface = Enum.SurfaceType.Smooth
+		zone.Material = Enum.Material.Glass
+		zone.Transparency = 0.7
+		zone.Color = CYAN
+		zone.Parent = Workspace
+		data.predictionZone = zone
+	end
+
+	if data.predictionZone then
+		-- Predict position 0.5 seconds ahead
+		local predictedPos = data.root.Position + (vel * 0.5)
+		data.predictionZone.Position = predictedPos
+		data.predictionZone.Size = Vector3.new(5, 5, 5)  -- 5 stud radius for prediction uncertainty
+		data.predictionZone.Enabled = true
+	end
 end
 
 -- Optimized updateSinglePlayerVisual with reduced redundant checks
@@ -729,13 +912,22 @@ local function updateSinglePlayerVisual(p, data)
 			cache.billEnabled = shouldEnable
 		end
 		if data.text then
+			-- Update equipped tool detection
+			local currentTool = getEquippedTool(character)
+			if cache.billTool ~= currentTool then
+				data.tool = currentTool
+				cache.billTool = currentTool
+			end
+
 			-- Only update text if data changed
-			if cache.billDist ~= distRounded or cache.billHP ~= hp or cache.billName ~= name then
-				local textValue = string.format(FORMAT_NAME_DIST_HP, name, distRounded, hp)
+			if cache.billDist ~= distRounded or cache.billHP ~= hp or cache.billName ~= name or cache.billTool ~= data.tool then
+				local toolDisplay = data.tool or "UNARMED"
+				local textValue = string.format(FORMAT_NAME_DIST_TOOL_HP, name, toolDisplay, distRounded, hp)
 				data.text.Text = textValue
 				cache.billDist = distRounded
 				cache.billHP = hp
 				cache.billName = name
+				cache.billTool = data.tool
 				cache.billText = textValue
 			end
 			if cache.billColor ~= textColor then
@@ -781,6 +973,9 @@ local function updatePlayerVisuals()
 	if not camera then return end
 	for p,data in pairs(perPlayer) do
 		updateSinglePlayerVisual(p, data)
+		updatePredictionVector(p, data)
+		updateProximityAlert(p, data)
+		updatePredictionZone(p, data)
 	end
 end
 
@@ -883,6 +1078,66 @@ local function updateWaypointIndicators()
 	end
 end
 
+-- Targeting Assist (lead prediction + mouse smoothing)
+local function getTargetLeadPosition(targetRoot, bulletSpeed)
+	if not targetRoot then return nil end
+	-- Predict where target will be when bullet arrives
+	-- Simple: vel * (distance / bulletSpeed)
+	local vel = targetRoot.AssemblyLinearVelocity
+	local myPos = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not myPos then return nil end
+	local dist = (targetRoot.Position - myPos.Position).Magnitude
+	if bulletSpeed <= 0 then bulletSpeed = 100 end
+	local travelTime = dist / bulletSpeed
+	return targetRoot.Position + (vel * travelTime)
+end
+
+local targetingAssistData = {
+	targetPlayer = nil,
+	targetPos = nil,
+	screenPos = nil,
+	lastMouseX = 0,
+	lastMouseY = 0
+}
+
+local function updateTargetingAssist()
+	if not TARGETING_ASSIST_ENABLED then
+		return
+	end
+
+	-- Find nearest player
+	if nearestPlayerRef and nearestPlayerRef.Character then
+		local targetRoot = nearestPlayerRef.Character:FindFirstChild("HumanoidRootPart")
+		if targetRoot then
+			-- Calculate lead position (assuming ~100 stud/s bullet speed)
+			local leadPos = getTargetLeadPosition(targetRoot, 100)
+			if leadPos then
+				targetingAssistData.targetPlayer = nearestPlayerRef
+				targetingAssistData.targetPos = leadPos
+
+				-- Project to screen
+				local v, onScreen = camera:WorldToViewportPoint(leadPos)
+				if onScreen then
+					targetingAssistData.screenPos = Vector2.new(v.X, v.Y)
+				end
+			end
+		end
+	else
+		targetingAssistData.targetPlayer = nil
+		targetingAssistData.targetPos = nil
+		targetingAssistData.screenPos = nil
+	end
+end
+
+local function drawTargetingCrosshair()
+	if not TARGETING_ASSIST_ENABLED or not targetingAssistData.screenPos then return end
+
+	-- This would draw a crosshair at the target position
+	-- For now, we just calculate it; actual rendering would need a canvas or GUI
+	local targetScreen = targetingAssistData.screenPos
+	return targetScreen
+end
+
 -- Sky Mode
 local function enableSkyMode()
 	if not skyBackupFolder then
@@ -958,6 +1213,10 @@ bind(UserInputService.InputBegan:Connect(function(input,gp)
 	elseif input.KeyCode == Enum.KeyCode.K then AUTOCLICK_ENABLED = not AUTOCLICK_ENABLED
 	elseif input.KeyCode == Enum.KeyCode.L then SKY_MODE_ENABLED = not SKY_MODE_ENABLED; if SKY_MODE_ENABLED then enableSkyMode() else disableSkyMode() end
 	elseif input.KeyCode == Enum.KeyCode.E then ESP_ENABLED = not ESP_ENABLED; for p,_ in pairs(perPlayer) do setESPVisible(p, ESP_ENABLED) end
+	elseif input.KeyCode == Enum.KeyCode.V then PREDICTION_VECTORS_ENABLED = not PREDICTION_VECTORS_ENABLED
+	elseif input.KeyCode == Enum.KeyCode.T then TARGETING_ASSIST_ENABLED = not TARGETING_ASSIST_ENABLED
+	elseif input.KeyCode == Enum.KeyCode.A then PROXIMITY_ALERTS_ENABLED = not PROXIMITY_ALERTS_ENABLED
+	elseif input.KeyCode == Enum.KeyCode.P then PREDICTION_ZONES_ENABLED = not PREDICTION_ZONES_ENABLED
 	elseif input.KeyCode == Enum.KeyCode.Z then unbreakLast()
 	elseif input.KeyCode == Enum.KeyCode.Six then
 		dead = true
@@ -1007,6 +1266,7 @@ bind(RunService.Heartbeat:Connect(function(dt)
 	-- Nearest and visuals
 	if runNearestUpdate(dt) then
 		updateNearestPlayer()
+		updateTargetingAssist()
 	end
 	if runVisualUpdate(dt) then
 		updatePlayerVisuals()
