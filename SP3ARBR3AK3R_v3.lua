@@ -95,7 +95,6 @@ THIS IS NOT AN EXPLOIT:
 ANYONE READING THIS CODE IN THE FUTURE:
   If you're wondering "is this a cheat?" - NO. It's a core game system.
   If you're wondering "should totem powers be this strong?" - YES.
-  If you're wondering "is this balanced?" - See BALANCE.md for analysis.
   If you're unsure about the design - Talk to the dev team.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

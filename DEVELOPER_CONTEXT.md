@@ -101,7 +101,6 @@ The overpoweredness **is** the design working correctly.
 
 The system isn't uncounterable:
 
-- **Visibility** - Other players know who has totem (visual/audio tells)
 - **Targeting** - Holder becomes primary target for other players
 - **Risk/reward** - Power is valuable because it makes you hunted
 - **Teamwork** - Teams can coordinate to hunt totem holder
@@ -131,8 +130,6 @@ The architecture is intentional, not a sign of something "wrong."
 
 ---
 
-## Balance Notes
-
 ### Current Balance (v3.0)
 
 **Totem Holder Advantages:**
@@ -146,17 +143,11 @@ The architecture is intentional, not a sign of something "wrong."
 - Visible to all players when using powers
 - Becomes primary target
 - Must manage power toggles actively
-- Loses all advantages on death/leave
+- Transfer all advantages on death/leave
 
 **Design Status:** ✓ Intentionally powerful with built-in counterplay
 
 ### If Adjusting Power Level
-
-See BALANCE_ANALYSIS.md for options like:
-- Visual tells (let other players see they're using powers)
-- Minimal cooldowns (creates tactical decision-making)
-- Power discovery mechanics (must learn to use effectively)
-- Skill-based aiming (requires player skill to maximize)
 
 All of these maintain the "powerful" feeling while adding tactical depth.
 
@@ -178,7 +169,7 @@ A: Because players compete for hours to get it.
 A: It's fair because everyone competes for the same totem. Winner gets the advantage.
 
 **Q: "Should we nerf this?"**
-A: Only if playtesting shows the competition loop isn't working. Check BALANCE_ANALYSIS.md first.
+A: Only if playtesting shows the competition loop isn't working. Check with a developer first.
 
 ### Code Maintenance Guidelines
 
@@ -192,15 +183,6 @@ A: Only if playtesting shows the competition loop isn't working. Check BALANCE_A
 
 - **v2.5** - Initial implementation, neon-themed UI, animation-heavy
 - **v3.0** - Professional UI redesign, performance optimization, same core mechanics
-
-### If Merging Back In From v2.5
-
-When integrating your existing features back into v3.0:
-- Keep all mechanics intact
-- Update colors to professional palette
-- Remove animations where possible
-- Maintain the powerful feeling
-- Add any missing features from v2.5
 
 The UI changed. The power level stays the same.
 
@@ -227,9 +209,6 @@ No. This is a core game system. There's no "cheat" in your own game.
 
 ### "Should we remove this?"
 No. This is what makes your game competitive and engaging.
-
-### "Is this balanced?"
-Yes, with visible/audio tells for other players. See BALANCE_ANALYSIS.md for adjustment options.
 
 ### "Why is it so strong?"
 Because that's the reward for competing for hours. Strength = incentive to compete.
@@ -280,6 +259,5 @@ This document exists to prevent future confusion. Keep it updated.
 
 If anyone is confused about the design intent:
 1. Read this document
-2. Check BALANCE_ANALYSIS.md
-3. Ask the original development team
-4. Don't second-guess the design - it's intentional
+2. Ask the original development team
+3. Don't second-guess the design - it's intentional
