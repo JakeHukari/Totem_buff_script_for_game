@@ -29,6 +29,13 @@ A totem power system for competitive Roblox gameplay featuring ESP, part breakin
 - **Instant Response** - Starts clicking immediately on target acquisition
 - **Steady Rate** - Maintains consistent CPS while on target
 
+### 🎯 Aimbot Assist (Exunys Integration)
+- **FOV Circle Overlay** - Adjustable radius, thickness, and color for instant visual feedback
+- **Hold-to-Lock** - Default behavior locks aim while holding RMB (toggleable)
+- **Smooth Camera Lerp** - Configurable smoothing inspired by Exunys Aimbot V3
+- **Predictive Tracking** - Optional velocity prediction keeps the lock ahead of moving targets
+- **Dynamic Aim Parts** - Targets Head by default with smart torso/root fallbacks
+
 ### 🌅 Sky Mode
 - **Client-Side Lighting** - Toggle bright daytime sky
 - **Backup/Restore** - Original sky preserved and restored on toggle-off
@@ -54,6 +61,7 @@ A totem power system for competitive Roblox gameplay featuring ESP, part breakin
 | **Ctrl+LMB** | Break part under cursor (Br3ak3r mode) |
 | **Ctrl+Z** | Undo last broken part |
 | **Ctrl+K** | Toggle AutoClick |
+| **Ctrl+J** | Toggle Aimbot Assist (hold RMB to lock) |
 | **Ctrl+L** | Toggle Sky Mode |
 | **Ctrl+MMB** | Add/Remove waypoint at cursor |
 | **Ctrl+6** | Killswitch (full cleanup) |
@@ -168,7 +176,22 @@ local UNDO_LIMIT = 25              -- Max undo stack size
 
 ## Version History
 
-### v1.12bLite [OPT] (Current)
+### v1.13 ENHANCED (Current)
+**Date:** 2025-12-01
+
+**New Features:**
+- Integrated Exunys Aimbot V3-style aim assist with configurable FOV circle, smoothing, and optional prediction
+- Ctrl+J toggle with hold-to-lock RMB workflow plus dynamic aim part selection
+- Guide panel expanded with dedicated Aimbot status indicator
+
+**Improvements:**
+- Centralized aimbot cleanup hooks on killswitch to prevent lingering UI
+- Rebalanced guide panel spacing for the additional toggle entry
+
+**Bug Fixes:**
+- Fixed right-mouse tracking scope so aim-assist state survives reloads without leaking globals
+
+### v1.12bLite [OPT]
 **Date:** 2025-10-20
 
 **New Features:**
