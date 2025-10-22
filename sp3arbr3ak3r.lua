@@ -190,7 +190,10 @@ local function playersAreTeammates(a, b)
 
 	local colorA, colorB = a.TeamColor, b.TeamColor
 	if colorA and colorB and colorA == colorB then
-		return true
+		local neutralA, neutralB = a.Neutral, b.Neutral
+		if neutralA == false and neutralB == false then
+			return true
+		end
 	end
 
 	return false
