@@ -159,6 +159,7 @@ local CLOSEST_COLOR = Color3.fromRGB(255, 20, 20)  -- Bright red for closest pla
 local GRADIENT_MIN_DIST = CONFIG.Visuals.gradient.minDist
 local GRADIENT_MAX_DIST = CONFIG.Visuals.gradient.maxDist
 local PREDICTION_ZONE_TRANSPARENCY = 0.7
+local MAX_RAYCAST_IGNORE_COUNT = 200
 
 -- Additional UI colors (cached)
 local BG_DARK = Color3.fromRGB(15,15,15)
@@ -740,30 +741,42 @@ local function worldRaycast(origin, direction, ignoreLocalChar, extraIgnore)
 
 	local ignoreCount = 0
 
-	-- Add broken parts to ignore list
-	local brokenCacheLen = #brokenIgnoreCache
-	if brokenCacheLen > 0 then
-		for i = 1, brokenCacheLen do
-			ignoreCount = ignoreCount + 1
-			ignore[ignoreCount] = brokenIgnoreCache[i]
+	local function tryAddIgnore(item)
+		if ignoreCount >= MAX_RAYCAST_IGNORE_COUNT then
+			return false
 		end
+		if item then
+			ignoreCount = ignoreCount + 1
+			ignore[ignoreCount] = item
+			return true
+		end
+		return false
 	end
 
-	-- Add local character to ignore list if needed
+	-- Always prioritize ignoring the local character and any explicit extras
 	if ignoreLocalChar then
 		local ch = localPlayer.Character
 		if ch then
-			ignoreCount = ignoreCount + 1
-			ignore[ignoreCount] = ch
+			tryAddIgnore(ch)
 		end
 	end
 
-	-- Add extra ignore list if provided
 	if extraIgnore then
 		local extraLen = #extraIgnore
 		for i = 1, extraLen do
-			ignoreCount = ignoreCount + 1
-			ignore[ignoreCount] = extraIgnore[i]
+			if not tryAddIgnore(extraIgnore[i]) then
+				break
+			end
+		end
+	end
+
+	-- Add broken parts to ignore list last so they can be trimmed if necessary
+	local brokenCacheLen = #brokenIgnoreCache
+	if brokenCacheLen > 0 then
+		for i = 1, brokenCacheLen do
+			if not tryAddIgnore(brokenIgnoreCache[i]) then
+				break
+			end
 		end
 	end
 
