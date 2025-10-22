@@ -1646,7 +1646,7 @@ local function createTargetingCrosshair()
 	targetingAssistData.leadIndicator = track(leadIndicator)
 end
 
-local function updateTargetingAssist()
+local function updateTargetingAssist(targetPlayer)
 	if not TARGETING_ASSIST_ENABLED then
 		if targetingAssistData.crosshair then
 			targetingAssistData.crosshair.Visible = false
@@ -1661,13 +1661,14 @@ local function updateTargetingAssist()
 		createTargetingCrosshair()
 	end
 	
-	if nearestPlayerRef and nearestPlayerRef.Character then
-		local targetRoot = nearestPlayerRef.Character:FindFirstChild("HumanoidRootPart")
+	local activeTarget = targetPlayer
+	if activeTarget and activeTarget.Character then
+		local targetRoot = activeTarget.Character:FindFirstChild("HumanoidRootPart")
 		if targetRoot and camera then
 			-- Calculate lead position
 			local leadPos = getTargetLeadPosition(targetRoot, CONFIG.Features.TargetingAssist.bulletSpeed)
 			if leadPos then
-				targetingAssistData.targetPlayer = nearestPlayerRef
+				targetingAssistData.targetPlayer = activeTarget
 				targetingAssistData.targetPos = leadPos
 				
 				-- Project lead position to screen
@@ -2131,8 +2132,9 @@ bind(RunService.Heartbeat:Connect(function(dt)
 	-- Nearest and visuals
 	if runNearestUpdate(dt) then
 		updateNearestPlayer()
-		updateTargetingAssist()
 	end
+
+	updateTargetingAssist(nearestPlayerRef)
 	
 	if runVisualUpdate(dt) then
 		updatePlayerVisuals(dt)
