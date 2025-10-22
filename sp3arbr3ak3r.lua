@@ -67,6 +67,7 @@ local CONFIG = {
 		SkyMode = {enabled = false},
 		PredictionVectors = {enabled = true},
 		TargetingAssist = {enabled = false, bulletSpeed = 100},
+		HitChanceCard = {enabled = false},
 		ProximityAlerts = {enabled = true},
 		PredictionZones = {enabled = true},
 		PerformanceDisplay = {enabled = false}
@@ -114,6 +115,7 @@ local AUTOCLICK_ENABLED = CONFIG.Features.AutoClick.enabled
 local SKY_MODE_ENABLED = CONFIG.Features.SkyMode.enabled
 local PREDICTION_VECTORS_ENABLED = CONFIG.Features.PredictionVectors.enabled
 local TARGETING_ASSIST_ENABLED = CONFIG.Features.TargetingAssist.enabled
+local HIT_CHANCE_CARD_ENABLED = CONFIG.Features.HitChanceCard.enabled
 local PROXIMITY_ALERTS_ENABLED = CONFIG.Features.ProximityAlerts.enabled
 local PREDICTION_ZONES_ENABLED = CONFIG.Features.PredictionZones.enabled
 local PERFORMANCE_DISPLAY_ENABLED = CONFIG.Features.PerformanceDisplay.enabled
@@ -1538,6 +1540,16 @@ local targetingAssistData = {
 	leadIndicator = nil
 }
 
+local hitChanceCardData = {
+	frame = nil,
+	background = nil,
+	label = nil,
+	stroke = nil,
+	shouldShow = false,
+	alpha = 1,
+	lastTarget = nil
+}
+
 local function getTargetLeadPosition(targetRoot, bulletSpeed)
 	if not targetRoot then return nil end
 
@@ -1648,6 +1660,241 @@ local function createTargetingCrosshair()
 	
 	targetingAssistData.leadIndicator = track(leadIndicator)
 end
+
+
+local function ensureHitChanceCard()
+	local data = hitChanceCardData
+	local frame = data.frame
+	if frame and frame.Parent then
+		if frame.Parent ~= screenGui then
+			frame.Parent = screenGui
+		end
+		return frame
+	end
+	if not screenGui then return nil end
+
+	frame = Instance.new("Frame")
+	frame.Name = "HitChanceCard"
+	frame.Size = UDim2.fromOffset(200, 72)
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = UDim2.fromScale(0.5, 0.5)
+	frame.BackgroundTransparency = 1
+	frame.BorderSizePixel = 0
+	frame.ZIndex = 2001
+	frame.Visible = false
+	frame.Parent = screenGui
+
+	local background = Instance.new("Frame")
+	background.Name = "Background"
+	background.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+	background.BackgroundTransparency = 0.7
+	background.BorderSizePixel = 0
+	background.Size = UDim2.fromScale(1, 1)
+	background.ZIndex = 2001
+	background.Parent = frame
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = background
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0, 8)
+	padding.PaddingBottom = UDim.new(0, 8)
+	padding.PaddingLeft = UDim.new(0, 10)
+	padding.PaddingRight = UDim.new(0, 10)
+	padding.Parent = background
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2
+	stroke.Color = Color3.fromRGB(255, 50, 50)
+	stroke.Transparency = 0.6
+	stroke.Parent = background
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	label.TextStrokeTransparency = 0.4
+	label.Text = ""
+	label.TextWrapped = true
+	label.TextScaled = false
+	label.TextSize = 16
+	label.TextXAlignment = Enum.TextXAlignment.Center
+	label.TextYAlignment = Enum.TextYAlignment.Center
+	label.ZIndex = 2002
+	label.Parent = background
+
+	data.frame = frame
+	data.background = background
+	data.label = label
+	data.stroke = stroke
+	data.shouldShow = false
+	data.alpha = 1
+	data.lastTarget = nil
+
+	return frame
+end
+
+local function destroyHitChanceCard()
+	if hitChanceCardData.frame then
+		safeDestroy(hitChanceCardData.frame)
+	end
+	hitChanceCardData.frame = nil
+	hitChanceCardData.background = nil
+	hitChanceCardData.label = nil
+	hitChanceCardData.stroke = nil
+	hitChanceCardData.shouldShow = false
+	hitChanceCardData.alpha = 1
+	hitChanceCardData.lastTarget = nil
+end
+
+local function hideHitChanceCard()
+	if hitChanceCardData.shouldShow then
+		hitChanceCardData.shouldShow = false
+		hitChanceCardData.lastTarget = nil
+	end
+end
+
+local function stepHitChanceCardFade(dt)
+	local frame = hitChanceCardData.frame
+	if not frame then return end
+
+	local targetAlpha = hitChanceCardData.shouldShow and 0 or 1
+	local speed = hitChanceCardData.shouldShow and 12 or 8
+	local currentAlpha = hitChanceCardData.alpha or 1
+	local step = min(dt * speed, 1)
+	currentAlpha = currentAlpha + (targetAlpha - currentAlpha) * step
+	if abs(currentAlpha - targetAlpha) < 0.01 then
+		currentAlpha = targetAlpha
+	end
+	hitChanceCardData.alpha = currentAlpha
+
+	if currentAlpha >= 0.995 then
+		frame.Visible = false
+		if not hitChanceCardData.shouldShow and hitChanceCardData.label then
+			hitChanceCardData.label.Text = ""
+		end
+	else
+		frame.Visible = true
+	end
+
+	local background = hitChanceCardData.background
+	if background then
+		background.BackgroundTransparency = 0.15 + (0.55 * currentAlpha)
+	end
+	local label = hitChanceCardData.label
+	if label then
+		label.TextTransparency = currentAlpha * 0.9
+		label.TextStrokeTransparency = clamp(0.25 + currentAlpha * 0.7, 0, 1)
+	end
+	local stroke = hitChanceCardData.stroke
+	if stroke then
+		stroke.Transparency = clamp(0.2 + currentAlpha * 0.7, 0, 1)
+	end
+end
+local function updateHitChanceCard(dt)
+	local shouldDisplay = false
+	local labelText, cardPosition
+	local targetForCard = nil
+
+	if HIT_CHANCE_CARD_ENABLED and not dead and rightMouseDown then
+		local target = nearestPlayerRef
+		if target and not shouldIgnorePlayer(target) then
+			local targetData = perPlayer[target]
+			local targetChar = target.Character or (targetData and targetData.character)
+			local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart") or (targetData and targetData.root)
+			if targetData then
+				targetData.root = targetRoot or targetData.root
+			end
+			if targetRoot and targetRoot:IsDescendantOf(Workspace) then
+				camera = Workspace.CurrentCamera or camera
+				local cam = camera
+				if cam then
+					local viewportPos, onScreen = cam:WorldToViewportPoint(targetRoot.Position)
+					if onScreen and viewportPos.Z >= 0 then
+						local myChar = localPlayer.Character
+						local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+						if myRoot then
+							local origin = myRoot.Position
+							local diff = targetRoot.Position - origin
+							local distance = diff.Magnitude
+							if distance >= 1e-3 then
+								local result = worldRaycast(origin, diff, true)
+								local blocked = false
+								if result then
+									local hitPlayer = hitIsPlayer(result.Instance)
+									if hitPlayer ~= target then
+										blocked = true
+									end
+								end
+								local hitChance = blocked and 0 or 100
+								if not blocked then
+									local rangePenalty = clamp((distance - 40) / 3.5, 0, 40)
+									hitChance = hitChance - rangePenalty
+									local leadPos = getTargetLeadPosition(targetRoot, CONFIG.Features.TargetingAssist.bulletSpeed)
+									if leadPos then
+										local aimVec = leadPos - cam.CFrame.Position
+										local mag = aimVec.Magnitude
+										if mag > 0 then
+											local aimDir = aimVec / mag
+											local lookDir = cam.CFrame.LookVector
+											local dot = clamp(lookDir:Dot(aimDir), -1, 1)
+											local angle = deg(math.acos(dot))
+											local anglePenalty = clamp(angle / 1.8, 0, 35)
+											hitChance = hitChance - anglePenalty
+										end
+									end
+								end
+								hitChance = clamp(hitChance, 0, 100)
+								if not blocked then
+									local anchor = targetingAssistData.screenPos
+									local displayPos
+									if anchor then
+										displayPos = Vector2.new(anchor.X, anchor.Y + 60)
+									else
+										displayPos = Vector2.new(viewportPos.X, viewportPos.Y + 60)
+									end
+									local displayName = target.DisplayName
+									if not displayName or displayName == '' then
+										displayName = target.Name
+									end
+									local studs = floor(distance + 0.5)
+									labelText = string.format('%s\n%d studs • %.0f%%', displayName, studs, hitChance)
+									cardPosition = displayPos
+									targetForCard = target
+									shouldDisplay = true
+								end
+							end
+						end
+					end
+			end
+		end
+	end
+
+	if shouldDisplay then
+		local frame = ensureHitChanceCard()
+		if frame and cardPosition then
+			hitChanceCardData.shouldShow = true
+			hitChanceCardData.lastTarget = targetForCard
+			frame.Position = UDim2.fromOffset(cardPosition.X, cardPosition.Y)
+			local label = hitChanceCardData.label
+			if label and labelText then
+				label.Text = labelText
+			end
+		else
+			hideHitChanceCard()
+		end
+	else
+		hideHitChanceCard()
+	end
+
+	stepHitChanceCardFade(dt)
+end
+
+
 
 local function updateTargetingAssist(targetPlayer)
 	if not TARGETING_ASSIST_ENABLED then
@@ -1931,8 +2178,12 @@ hoverHL.Parent = Workspace
 
 -- Input
 local CTRL_HELD = false
+local rightMouseDown = false
 
 bind(UserInputService.InputBegan:Connect(function(input,gp)
+	if not gp and not dead and input.UserInputType == Enum.UserInputType.MouseButton2 then
+		rightMouseDown = true
+	end
 	if gp or dead then return end
 	if input.KeyCode == Enum.KeyCode.LeftControl then CTRL_HELD = true end
 
@@ -1993,6 +2244,9 @@ bind(UserInputService.InputBegan:Connect(function(input,gp)
 end))
 
 bind(UserInputService.InputEnded:Connect(function(input,gp)
+	if not gp and not dead and input.UserInputType == Enum.UserInputType.MouseButton2 then
+		rightMouseDown = false
+	end
 	if input.KeyCode == Enum.KeyCode.LeftControl then CTRL_HELD = false end
 end))
 
@@ -2032,9 +2286,11 @@ bind(UserInputService.InputBegan:Connect(function(input,gp)
 		CLICKBREAK_ENABLED = false
 		PREDICTION_VECTORS_ENABLED = false
 		TARGETING_ASSIST_ENABLED = false
+		HIT_CHANCE_CARD_ENABLED = false
 		PROXIMITY_ALERTS_ENABLED = false
 		PREDICTION_ZONES_ENABLED = false
 		PERFORMANCE_DISPLAY_ENABLED = false
+		rightMouseDown = false
 		
 		disableSkyMode()
 		disconnectAll()
@@ -2090,6 +2346,8 @@ bind(UserInputService.InputBegan:Connect(function(input,gp)
 			safeDestroy(targetingAssistData.leadIndicator)
 		end
 		
+		destroyHitChanceCard()
+		
 		destroyAll()
 		
 		-- Restore mouse behavior
@@ -2138,6 +2396,7 @@ bind(RunService.Heartbeat:Connect(function(dt)
 	end
 
 	updateTargetingAssist(nearestPlayerRef)
+	updateHitChanceCard(dt)
 	
 	if runVisualUpdate(dt) then
 		updatePlayerVisuals(dt)
