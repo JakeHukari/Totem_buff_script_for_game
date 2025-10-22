@@ -1075,9 +1075,10 @@ local function updatePredictionVector(p, data)
 	if speed > 0.5 then
 		local vizLength = min(speed / 20, 50)
 		local vizDir = vel.Unit
+		local vizOffset = data.root.CFrame:VectorToObjectSpace(vizDir * vizLength)
 
 		if data.predVecAttach1 then
-			data.predVecAttach1.Position = data.root.Position + (vizDir * vizLength)
+			data.predVecAttach1.Position = vizOffset
 		end
 
 		local speedRatio = min(speed / 100, 1)
