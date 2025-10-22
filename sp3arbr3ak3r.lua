@@ -247,8 +247,14 @@ local ObjectPools = {
 
 local function getFromPool(poolName)
 	local poolData = ObjectPools[poolName]
-	if not poolData or poolData.size <= 0 then return nil end
-	
+	if not poolData then
+		return nil
+	end
+
+	if poolData.size <= 0 then
+		return nil
+	end
+
 	local obj = poolData.pool[poolData.size]
 	poolData.pool[poolData.size] = nil
 	poolData.size = poolData.size - 1
@@ -256,19 +262,30 @@ local function getFromPool(poolName)
 end
 
 local function returnToPool(poolName, obj)
+	if not obj then
+		return
+	end
+
 	local poolData = ObjectPools[poolName]
-	if not poolData then return end
-	
-	local maxSize = CONFIG.Performance.pooling["max"..poolName:sub(1,1):upper()..poolName:sub(2)] or 10
-	
+	if not poolData then
+		return
+	end
+
+	local poolingConfig = CONFIG.Performance and CONFIG.Performance.pooling
+	local maxKey = "max" .. poolName:sub(1,1):upper() .. poolName:sub(2)
+	local maxSize = (poolingConfig and poolingConfig[maxKey]) or 10
+
 	if poolData.size < maxSize then
 		poolData.size = poolData.size + 1
 		poolData.pool[poolData.size] = obj
 		obj.Visible = false
 		obj.Parent = nil
-	else
-		pcall(function() obj:Destroy() end)
+		return
 	end
+
+	pcall(function()
+		obj:Destroy()
+	end)
 end
 
 -- ============================================================
