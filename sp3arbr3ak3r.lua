@@ -907,7 +907,11 @@ local function destroyPerPlayer(p)
 	if pp.predictionVector then safeDestroy(pp.predictionVector) end
 	
 	-- Clean up proximity alert
-	if pp.proximityAlert then 
+	if pp.alertIndex ~= nil then
+		proximityAlertManager:releaseSlot(p)
+		pp.alertIndex = nil
+	end
+	if pp.proximityAlert then
 		returnToPool("alerts", pp.proximityAlert)
 	end
 	
@@ -1094,12 +1098,109 @@ local function updatePredictionVector(p, data)
 	end
 end
 
--- Proximity Alerts (ENHANCED positioning)
-local proximityAlertYOffset = 0
+local proximityAlertManager = {
+	indexByPlayer = {},
+	activeThisFrame = {},
+	freeSlots = {},
+	nextSlot = 0
+}
+
+local function insertFreeSlot(sortedList, value)
+	local inserted = false
+	for i = 1, #sortedList do
+		if value < sortedList[i] then
+			insert(sortedList, i, value)
+			inserted = true
+			break
+		end
+	end
+	if not inserted then
+		sortedList[#sortedList + 1] = value
+	end
+end
+
+function proximityAlertManager:beginFrame()
+	clear(self.activeThisFrame)
+end
+
+function proximityAlertManager:acquireSlot(player)
+	self.activeThisFrame[player] = true
+	local existing = self.indexByPlayer[player]
+	if existing ~= nil then
+		return existing
+	end
+
+	local freeSlots = self.freeSlots
+	local slot
+	if #freeSlots > 0 then
+		slot = freeSlots[1]
+		remove(freeSlots, 1)
+	else
+		slot = self.nextSlot
+		self.nextSlot = self.nextSlot + 1
+	end
+
+	self.indexByPlayer[player] = slot
+	return slot
+end
+
+function proximityAlertManager:releaseSlot(player)
+	local current = self.indexByPlayer[player]
+	if current == nil then return end
+
+	self.indexByPlayer[player] = nil
+	insertFreeSlot(self.freeSlots, current)
+end
+
+function proximityAlertManager:endFrame()
+	if next(self.indexByPlayer) == nil then
+		self.nextSlot = 0
+		clear(self.freeSlots)
+		return
+	end
+
+	local toRelease
+	for player in pairs(self.indexByPlayer) do
+		if not self.activeThisFrame[player] then
+			toRelease = toRelease or {}
+			toRelease[#toRelease + 1] = player
+		end
+	end
+
+	if toRelease then
+		for i = 1, #toRelease do
+			self:releaseSlot(toRelease[i])
+		end
+	end
+
+	clear(self.activeThisFrame)
+
+	while self.nextSlot > 0 and #self.freeSlots > 0 do
+		local highest = self.nextSlot - 1
+		local lastIndex = self.freeSlots[#self.freeSlots]
+		if lastIndex == highest then
+			remove(self.freeSlots, #self.freeSlots)
+			self.nextSlot = highest
+		else
+			break
+		end
+	end
+end
+
+function proximityAlertManager:reset()
+	clear(self.indexByPlayer)
+	clear(self.activeThisFrame)
+	clear(self.freeSlots)
+	self.nextSlot = 0
+end
 
 local function updateProximityAlert(p, data)
 	if not PROXIMITY_ALERTS_ENABLED then
 		if data.proximityAlert then data.proximityAlert.Visible = false end
+		if data.alertIndex ~= nil then
+			proximityAlertManager:releaseSlot(p)
+			data.alertIndex = nil
+		end
 		return
 	end
 
@@ -1107,6 +1208,10 @@ local function updateProximityAlert(p, data)
 	local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
 	if not myRoot or not data.root then
 		if data.proximityAlert then data.proximityAlert.Visible = false end
+		if data.alertIndex ~= nil then
+			proximityAlertManager:releaseSlot(p)
+			data.alertIndex = nil
+		end
 		return
 	end
 
@@ -1123,8 +1228,11 @@ local function updateProximityAlert(p, data)
 	end
 
 	if not alertColor then
-		if data.proximityAlert then 
+		if data.proximityAlert then
 			data.proximityAlert.Visible = false
+		end
+		if data.alertIndex ~= nil then
+			proximityAlertManager:releaseSlot(p)
 			data.alertIndex = nil
 		end
 		return
@@ -1143,20 +1251,16 @@ local function updateProximityAlert(p, data)
 		alert.ZIndex = 500
 		alert.Parent = screenGui
 		data.proximityAlert = alert
-		
-		-- Assign alert index for stacking
-		if not data.alertIndex then
-			data.alertIndex = proximityAlertYOffset
-			proximityAlertYOffset = proximityAlertYOffset + 1
-		end
-		
+
 		track(alert)
 	end
 
 	if data.proximityAlert then
+		local slotIndex = proximityAlertManager:acquireSlot(p)
+		data.alertIndex = slotIndex
 		data.proximityAlert.Text = alertText
 		data.proximityAlert.BackgroundColor3 = alertColor
-		data.proximityAlert.Position = UDim2.fromOffset(10, 10 + (data.alertIndex or 0) * 25)
+		data.proximityAlert.Position = UDim2.fromOffset(10, 10 + slotIndex * 25)
 		data.proximityAlert.Visible = true
 	end
 end
@@ -1323,17 +1427,21 @@ local visualUpdateTimer = 0
 local function updatePlayerVisuals(dt)
 	camera = Workspace.CurrentCamera or camera
 	if not camera then return end
-	
+
 	-- Measure performance
 	local startTime = tick()
-	
+
+	proximityAlertManager:beginFrame()
+
 	for p,data in pairs(perPlayer) do
 		updateSinglePlayerVisual(p, data, dt)
 		updatePredictionVector(p, data)
 		updateProximityAlert(p, data)
 		updatePredictionZone(p, data)
 	end
-	
+
+	proximityAlertManager:endFrame()
+
 	performanceData.updateTime = tick() - startTime
 end
 
@@ -1810,7 +1918,7 @@ bind(UserInputService.InputBegan:Connect(function(input,gp)
 		TARGETING_ASSIST_ENABLED = not TARGETING_ASSIST_ENABLED
 	elseif input.KeyCode == Enum.KeyCode.A then
 		PROXIMITY_ALERTS_ENABLED = not PROXIMITY_ALERTS_ENABLED
-		proximityAlertYOffset = 0  -- Reset stacking
+		proximityAlertManager:reset() -- Reset stacking
 	elseif input.KeyCode == Enum.KeyCode.P then
 		PREDICTION_ZONES_ENABLED = not PREDICTION_ZONES_ENABLED
 	elseif input.KeyCode == Enum.KeyCode.F then
