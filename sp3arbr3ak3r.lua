@@ -1479,16 +1479,52 @@ local targetingAssistData = {
 
 local function getTargetLeadPosition(targetRoot, bulletSpeed)
 	if not targetRoot then return nil end
-	
+
 	local vel = targetRoot.AssemblyLinearVelocity
 	local myPos = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
 	if not myPos then return nil end
-	
-	local dist = (targetRoot.Position - myPos.Position).Magnitude
+
+	local relative = targetRoot.Position - myPos.Position
+	local dist = relative.Magnitude
 	if bulletSpeed <= 0 then bulletSpeed = CONFIG.Features.TargetingAssist.bulletSpeed end
-	
+
 	local travelTime = dist / bulletSpeed
-	return targetRoot.Position + (vel * travelTime)
+	local bulletSpeedSq = bulletSpeed * bulletSpeed
+	local vDotV = vel:Dot(vel)
+	local vDotR = vel:Dot(relative)
+	local relDotRel = relative:Dot(relative)
+
+	local a = vDotV - bulletSpeedSq
+	local b = 2 * vDotR
+	local c = relDotRel
+	local t = nil
+
+	if math.abs(a) < 1e-6 then
+		if math.abs(b) > 1e-6 then
+			t = -c / b
+		end
+	else
+		local discriminant = (b * b) - (4 * a * c)
+		if discriminant >= 0 then
+			local sqrtDisc = math.sqrt(discriminant)
+			local denom = 2 * a
+			local t1 = (-b - sqrtDisc) / denom
+			local t2 = (-b + sqrtDisc) / denom
+			if t1 > 0 and t2 > 0 then
+				t = math.min(t1, t2)
+			elseif t1 > 0 then
+				t = t1
+			elseif t2 > 0 then
+				t = t2
+			end
+		end
+	end
+
+	if not t or t <= 0 then
+		t = travelTime
+	end
+
+	return targetRoot.Position + (vel * t)
 end
 
 local function createTargetingCrosshair()
