@@ -1,6 +1,10 @@
 --[[
-SP3ARBR3AK3R v1.13 ENHANCED EDITION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SP3ARBR3AK3R v1.13.2 ENHANCED EDITION
+Update Summary v1.13.2: Restored targeting assist UI + hit chance card helpers removed in merge, fixing execution breakage.
+
+Versioning Guidance:
+• Every future code change must bump the version by +0.0.1 (example: 1.13.2 → 1.13.3).
+• Add a single-line summary for the latest version directly under the header.
 
 CHANGELOG v1.13:
 • Fixed memory leaks in prediction features (attachments now properly tracked)
@@ -41,7 +45,7 @@ Killswitch [Ctrl+6] — full cleanup (UI, outlines, indicators, sky, connections
 
 -- Local cache of frequently used globals for performance
 local abs, floor, max, min, clamp = math.abs, math.floor, math.max, math.min, math.clamp
-local deg, atan2, sqrt = math.deg, math.atan2, math.sqrt
+local deg, atan2, sqrt, acos = math.deg, math.atan2, math.sqrt, math.acos
 local insert, remove, clear = table.insert, table.remove, table.clear
 local huge = math.huge
 
@@ -1582,6 +1586,358 @@ local hitChanceCardData = {
 	lastTarget = nil
 }
 
+local function getTargetLeadPosition(targetRoot, bulletSpeed)
+	if not targetRoot then return nil end
+
+	local myChar = localPlayer.Character
+	local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+	if not myRoot then return nil end
+
+	local velocity = targetRoot.AssemblyLinearVelocity
+	local relative = targetRoot.Position - myRoot.Position
+	local distance = relative.Magnitude
+
+	bulletSpeed = bulletSpeed or CONFIG.Features.TargetingAssist.bulletSpeed
+	if bulletSpeed <= 0 then
+		bulletSpeed = CONFIG.Features.TargetingAssist.bulletSpeed
+	end
+
+	local travelTime = distance / bulletSpeed
+	local bulletSpeedSq = bulletSpeed * bulletSpeed
+	local vDotV = velocity:Dot(velocity)
+	local vDotR = velocity:Dot(relative)
+	local relDotRel = relative:Dot(relative)
+
+	local a = vDotV - bulletSpeedSq
+	local b = 2 * vDotR
+	local c = relDotRel
+	local t
+
+	if abs(a) < 1e-6 then
+		if abs(b) > 1e-6 then
+			t = -c / b
+		end
+	else
+		local discriminant = (b * b) - (4 * a * c)
+		if discriminant >= 0 then
+			local sqrtDisc = sqrt(discriminant)
+			local denom = 2 * a
+			local t1 = (-b - sqrtDisc) / denom
+			local t2 = (-b + sqrtDisc) / denom
+			if t1 and t1 > 0 and t2 and t2 > 0 then
+				t = min(t1, t2)
+			elseif t1 and t1 > 0 then
+				t = t1
+			elseif t2 and t2 > 0 then
+				t = t2
+			end
+		end
+	end
+
+	if not t or t <= 0 then
+		t = travelTime
+	end
+
+	return targetRoot.Position + (velocity * t)
+end
+
+local function createTargetingCrosshair()
+	if targetingAssistData.crosshair then return end
+	if not screenGui then return end
+
+	local crosshair = track(Instance.new("Frame"))
+	crosshair.Name = "TargetCrosshair"
+	crosshair.Size = UDim2.fromOffset(40, 40)
+	crosshair.BackgroundTransparency = 1
+	crosshair.BorderSizePixel = 0
+	crosshair.ZIndex = 2000
+	crosshair.Visible = false
+	crosshair.Parent = screenGui
+
+	local h = Instance.new("Frame")
+	h.Size = UDim2.new(1, 0, 0, 2)
+	h.Position = UDim2.fromScale(0, 0.5)
+	h.AnchorPoint = Vector2.new(0, 0.5)
+	h.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+	h.BorderSizePixel = 0
+	h.ZIndex = 2000
+	h.Parent = crosshair
+
+	local v = Instance.new("Frame")
+	v.Size = UDim2.new(0, 2, 1, 0)
+	v.Position = UDim2.fromScale(0.5, 0)
+	v.AnchorPoint = Vector2.new(0.5, 0)
+	v.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+	v.BorderSizePixel = 0
+	v.ZIndex = 2000
+	v.Parent = crosshair
+
+	local dot = Instance.new("Frame")
+	dot.Size = UDim2.fromOffset(4, 4)
+	dot.Position = UDim2.fromScale(0.5, 0.5)
+	dot.AnchorPoint = Vector2.new(0.5, 0.5)
+	dot.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+	dot.BorderSizePixel = 0
+	dot.ZIndex = 2000
+	dot.Parent = crosshair
+
+	local dotCorner = Instance.new("UICorner")
+	dotCorner.CornerRadius = UDim.new(1, 0)
+	dotCorner.Parent = dot
+
+	targetingAssistData.crosshair = crosshair
+
+	local leadIndicator = track(Instance.new("Frame"))
+	leadIndicator.Name = "LeadIndicator"
+	leadIndicator.Size = UDim2.fromOffset(20, 20)
+	leadIndicator.BackgroundTransparency = 0.5
+	leadIndicator.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+	leadIndicator.BorderSizePixel = 0
+	leadIndicator.ZIndex = 1999
+	leadIndicator.Visible = false
+	leadIndicator.Parent = screenGui
+
+	local leadCorner = Instance.new("UICorner")
+	leadCorner.CornerRadius = UDim.new(1, 0)
+	leadCorner.Parent = leadIndicator
+
+	targetingAssistData.leadIndicator = leadIndicator
+end
+
+local function ensureHitChanceCard()
+	local data = hitChanceCardData
+	local frame = data.frame
+	if frame and frame.Parent then
+		if frame.Parent ~= screenGui then
+			frame.Parent = screenGui
+		end
+		return frame
+	end
+	if not screenGui then return nil end
+
+	frame = track(Instance.new("Frame"))
+	frame.Name = "HitChanceCard"
+	frame.Size = UDim2.fromOffset(200, 72)
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = UDim2.fromScale(0.5, 0.5)
+	frame.BackgroundTransparency = 1
+	frame.BorderSizePixel = 0
+	frame.ZIndex = 2001
+	frame.Visible = false
+	frame.Parent = screenGui
+
+	local background = Instance.new("Frame")
+	background.Name = "Background"
+	background.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+	background.BackgroundTransparency = 0.7
+	background.BorderSizePixel = 0
+	background.Size = UDim2.fromScale(1, 1)
+	background.ZIndex = 2001
+	background.Parent = frame
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = background
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0, 8)
+	padding.PaddingBottom = UDim.new(0, 8)
+	padding.PaddingLeft = UDim.new(0, 10)
+	padding.PaddingRight = UDim.new(0, 10)
+	padding.Parent = background
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2
+	stroke.Color = Color3.fromRGB(255, 50, 50)
+	stroke.Transparency = 0.6
+	stroke.Parent = background
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	label.TextStrokeTransparency = 0.4
+	label.Text = ""
+	label.TextWrapped = true
+	label.TextScaled = false
+	label.TextSize = 16
+	label.TextXAlignment = Enum.TextXAlignment.Center
+	label.TextYAlignment = Enum.TextYAlignment.Center
+	label.ZIndex = 2002
+	label.Parent = background
+
+	data.frame = frame
+	data.background = background
+	data.label = label
+	data.stroke = stroke
+	data.shouldShow = false
+	data.alpha = 1
+	data.lastTarget = nil
+
+	return frame
+end
+
+local function destroyHitChanceCard()
+	if hitChanceCardData.frame then
+		safeDestroy(hitChanceCardData.frame)
+	end
+	hitChanceCardData.frame = nil
+	hitChanceCardData.background = nil
+	hitChanceCardData.label = nil
+	hitChanceCardData.stroke = nil
+	hitChanceCardData.shouldShow = false
+	hitChanceCardData.alpha = 1
+	hitChanceCardData.lastTarget = nil
+end
+
+local function hideHitChanceCard()
+	if hitChanceCardData.shouldShow then
+		hitChanceCardData.shouldShow = false
+		hitChanceCardData.lastTarget = nil
+	end
+end
+
+local function stepHitChanceCardFade(dt)
+	local frame = hitChanceCardData.frame
+	if not frame then return end
+
+	local targetAlpha = hitChanceCardData.shouldShow and 0 or 1
+	local speed = hitChanceCardData.shouldShow and 12 or 8
+	local currentAlpha = hitChanceCardData.alpha or 1
+	local step = min(dt * speed, 1)
+	currentAlpha = currentAlpha + (targetAlpha - currentAlpha) * step
+	if abs(currentAlpha - targetAlpha) < 0.01 then
+		currentAlpha = targetAlpha
+	end
+	hitChanceCardData.alpha = currentAlpha
+
+	if currentAlpha >= 0.995 then
+		frame.Visible = false
+		if not hitChanceCardData.shouldShow and hitChanceCardData.label then
+			hitChanceCardData.label.Text = ""
+		end
+	else
+		frame.Visible = true
+	end
+
+	local background = hitChanceCardData.background
+	if background then
+		background.BackgroundTransparency = 0.15 + (0.55 * currentAlpha)
+	end
+	local label = hitChanceCardData.label
+	if label then
+		label.TextTransparency = currentAlpha * 0.9
+		label.TextStrokeTransparency = clamp(0.25 + currentAlpha * 0.7, 0, 1)
+	end
+	local stroke = hitChanceCardData.stroke
+	if stroke then
+		stroke.Transparency = clamp(0.2 + currentAlpha * 0.7, 0, 1)
+	end
+end
+
+local function updateHitChanceCard(dt)
+	local shouldDisplay = false
+	local labelText, cardPosition
+	local targetForCard
+
+	if HIT_CHANCE_CARD_ENABLED and not dead and rightMouseDown then
+		local target = nearestPlayerRef
+		if target and not shouldIgnorePlayer(target) then
+			local targetData = perPlayer[target]
+			local targetChar = target.Character or (targetData and targetData.character)
+			local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart") or (targetData and targetData.root)
+			if targetData then
+				targetData.root = targetRoot or targetData.root
+			end
+			if targetRoot and targetRoot:IsDescendantOf(Workspace) then
+				camera = Workspace.CurrentCamera or camera
+				local cam = camera
+				if cam then
+					local viewportPos, onScreen = cam:WorldToViewportPoint(targetRoot.Position)
+					if onScreen and viewportPos.Z >= 0 then
+						local myChar = localPlayer.Character
+						local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+						if myRoot then
+							local origin = myRoot.Position
+							local diff = targetRoot.Position - origin
+							local distance = diff.Magnitude
+							if distance >= 1e-3 then
+								local result = worldRaycast(origin, diff, true)
+								local blocked = false
+								if result then
+									local hitPlayer = hitIsPlayer(result.Instance)
+									if hitPlayer ~= target then
+										blocked = true
+									end
+								end
+								local hitChance = blocked and 0 or 100
+								if not blocked then
+									local rangePenalty = clamp((distance - 40) / 3.5, 0, 40)
+									hitChance = hitChance - rangePenalty
+									local leadPos = getTargetLeadPosition(targetRoot, CONFIG.Features.TargetingAssist.bulletSpeed)
+									if leadPos then
+										local aimVec = leadPos - cam.CFrame.Position
+										local mag = aimVec.Magnitude
+										if mag > 0 then
+											local aimDir = aimVec / mag
+											local lookDir = cam.CFrame.LookVector
+											local dotProd = clamp(lookDir:Dot(aimDir), -1, 1)
+											local angle = deg(acos(dotProd))
+											local anglePenalty = clamp(angle / 1.8, 0, 35)
+											hitChance = hitChance - anglePenalty
+										end
+									end
+								end
+								hitChance = clamp(hitChance, 0, 100)
+								if not blocked then
+									local anchor = targetingAssistData.screenPos
+									local displayPos
+									if anchor then
+										displayPos = Vector2.new(anchor.X, anchor.Y + 60)
+									else
+										displayPos = Vector2.new(viewportPos.X, viewportPos.Y + 60)
+									end
+									local displayName = target.DisplayName
+									if not displayName or displayName == "" then
+										displayName = target.Name
+									end
+									local studs = floor(distance + 0.5)
+									labelText = string.format("%s\n%d studs • %.0f%%", displayName, studs, hitChance)
+									cardPosition = displayPos
+									targetForCard = target
+									shouldDisplay = true
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	if shouldDisplay then
+		local frame = ensureHitChanceCard()
+		if frame and cardPosition then
+			hitChanceCardData.shouldShow = true
+			hitChanceCardData.lastTarget = targetForCard
+			frame.Position = UDim2.fromOffset(cardPosition.X, cardPosition.Y)
+			local label = hitChanceCardData.label
+			if label and labelText then
+				label.Text = labelText
+			end
+		else
+			hideHitChanceCard()
+		end
+	else
+		hideHitChanceCard()
+	end
+
+	stepHitChanceCardFade(dt)
+end
+
 local aimbotState = {
 	fovCircle = nil,
 	fovStroke = nil,
@@ -1600,7 +1956,7 @@ end
 
 local function ensureAimbotCircle()
 	if aimbotState.fovCircle and aimbotState.fovCircle.Parent then
-		return aimbotState.fovCircle
+	return aimbotState.fovCircle
 	end
 
 	local circle = track(Instance.new("Frame"))
@@ -1629,7 +1985,7 @@ end
 
 local function destroyAimbotVisuals()
 	if aimbotState.fovCircle then
-		safeDestroy(aimbotState.fovCircle)
+	safeDestroy(aimbotState.fovCircle)
 	end
 	aimbotState.fovCircle = nil
 	aimbotState.fovStroke = nil
@@ -1647,7 +2003,7 @@ local function updateAimbotCircle()
 	local visible = AIMBOT_ENABLED and aimConfig.fovVisible
 	circle.Visible = visible
 	if not visible then
-		return
+	return
 	end
 
 	local radius = clamp(aimConfig.fovRadius or 0, 10, 6000)
@@ -1657,9 +2013,9 @@ local function updateAimbotCircle()
 
 	local stroke = aimbotState.fovStroke
 	if stroke then
-		stroke.Thickness = aimConfig.fovThickness or 1.6
-		stroke.Transparency = clamp(aimConfig.fovTransparency or 0.2, 0, 1)
-		stroke.Color = aimConfig.fovColor or Color3.fromRGB(255, 90, 90)
+	stroke.Thickness = aimConfig.fovThickness or 1.6
+	stroke.Transparency = clamp(aimConfig.fovTransparency or 0.2, 0, 1)
+	stroke.Color = aimConfig.fovColor or Color3.fromRGB(255, 90, 90)
 	end
 end
 
@@ -1667,40 +2023,40 @@ local function getCharacterAimPart(character, aimConfig)
 	if not character then return nil end
 	local aimPartSetting = aimConfig.aimPart
 	if typeof(aimPartSetting) == "table" then
-		for i = 1, #aimPartSetting do
-			local part = character:FindFirstChild(aimPartSetting[i])
-			if part then return part end
-		end
+	for i = 1, #aimPartSetting do
+	local part = character:FindFirstChild(aimPartSetting[i])
+	if part then return part end
+	end
 	elseif typeof(aimPartSetting) == "string" then
-		local named = character:FindFirstChild(aimPartSetting)
-		if named then return named end
-		if aimPartSetting == "Head" then
-			local fallback = character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
-			if fallback then return fallback end
-		elseif aimPartSetting == "Torso" then
-			local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
-			if torso then return torso end
-		elseif aimPartSetting == "HumanoidRootPart" or aimPartSetting == "Root" then
-			local root = character:FindFirstChild("HumanoidRootPart")
-			if root then return root end
-			local alt = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
-			if alt then return alt end
-		end
+	local named = character:FindFirstChild(aimPartSetting)
+	if named then return named end
+	if aimPartSetting == "Head" then
+	local fallback = character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
+	if fallback then return fallback end
+	elseif aimPartSetting == "Torso" then
+	local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+	if torso then return torso end
+	elseif aimPartSetting == "HumanoidRootPart" or aimPartSetting == "Root" then
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if root then return root end
+	local alt = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+	if alt then return alt end
+	end
 	end
 	return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
 end
 
 local function computeAimPosition(part, root, aimConfig)
 	if not part or not part:IsA("BasePart") then
-		return nil
+	return nil
 	end
 	local position = part.Position
 	if aimConfig.prediction then
-		local velocity = part.AssemblyLinearVelocity
-		if velocity.Magnitude < 1e-3 and root and root:IsA("BasePart") then
-			velocity = root.AssemblyLinearVelocity
-		end
-		position = position + (velocity * (aimConfig.predictionTime or 0))
+	local velocity = part.AssemblyLinearVelocity
+	if velocity.Magnitude < 1e-3 and root and root:IsA("BasePart") then
+	velocity = root.AssemblyLinearVelocity
+	end
+	position = position + (velocity * (aimConfig.predictionTime or 0))
 	end
 	return position
 end
@@ -1713,7 +2069,7 @@ local function evaluateAimbotCandidate(player, data, mousePos, radius, aimConfig
 
 	local root = character:FindFirstChild("HumanoidRootPart") or (data and data.root)
 	if root and data then
-		data.root = root
+	data.root = root
 	end
 
 	local predicted = computeAimPosition(aimPart, root, aimConfig)
@@ -1725,21 +2081,21 @@ local function evaluateAimbotCandidate(player, data, mousePos, radius, aimConfig
 
 	local viewportPos, onScreen = cam:WorldToViewportPoint(predicted)
 	if not onScreen or viewportPos.Z <= 0 then
-		return nil
+	return nil
 	end
 
 	local screenPoint = Vector2.new(viewportPos.X, viewportPos.Y)
 	local distance = (screenPoint - mousePos).Magnitude
 	if distance > radius then
-		return nil
+	return nil
 	end
 
 	return {
-		player = player,
-		part = aimPart,
-		position = predicted,
-		screenPoint = screenPoint,
-		distance = distance
+	player = player,
+	part = aimPart,
+	position = predicted,
+	screenPoint = screenPoint,
+	distance = distance
 	}
 end
 
@@ -1747,72 +2103,72 @@ local function updateAimbot(dt)
 	updateAimbotCircle()
 
 	if not AIMBOT_ENABLED then
-		clearAimbotLock()
-		return
+	clearAimbotLock()
+	return
 	end
 
 	local aimConfig = CONFIG.Features.Aimbot
 	if aimConfig.holdToLock and not rightMouseDown then
-		clearAimbotLock()
-		return
+	clearAimbotLock()
+	return
 	end
 
 	camera = Workspace.CurrentCamera or camera
 	if not camera then
-		clearAimbotLock()
-		return
+	clearAimbotLock()
+	return
 	end
 
 	local mousePos = getMouseViewportPosition()
 	local baseRadius = clamp(aimConfig.fovRadius or 0, 0, 6000)
 	local currentCandidate = nil
 	if aimbotState.targetPlayer and not shouldIgnorePlayer(aimbotState.targetPlayer) then
-		currentCandidate = evaluateAimbotCandidate(aimbotState.targetPlayer, perPlayer[aimbotState.targetPlayer], mousePos, baseRadius + 25, aimConfig)
+	currentCandidate = evaluateAimbotCandidate(aimbotState.targetPlayer, perPlayer[aimbotState.targetPlayer], mousePos, baseRadius + 25, aimConfig)
 	end
 
 	local bestCandidate = currentCandidate
 	if not bestCandidate then
-		local radius = baseRadius
-		local bestDistance = radius
-		for p,data in pairs(perPlayer) do
-			if not shouldIgnorePlayer(p) then
-				local candidate = evaluateAimbotCandidate(p, data, mousePos, radius, aimConfig)
-				if candidate and candidate.distance < bestDistance then
-					bestDistance = candidate.distance
-					bestCandidate = candidate
-				end
-			end
-		end
+	local radius = baseRadius
+	local bestDistance = radius
+	for p, data in pairs(perPlayer) do
+	if not shouldIgnorePlayer(p) then
+	local candidate = evaluateAimbotCandidate(p, data, mousePos, radius, aimConfig)
+	if candidate and candidate.distance < bestDistance then
+	bestDistance = candidate.distance
+	bestCandidate = candidate
+	end
+	end
+	end
 	end
 
 	if bestCandidate then
-		aimbotState.targetPlayer = bestCandidate.player
-		aimbotState.targetPart = bestCandidate.part
-		aimbotState.targetPosition = bestCandidate.position
-		aimbotState.targetScreenPoint = bestCandidate.screenPoint
+	aimbotState.targetPlayer = bestCandidate.player
+	aimbotState.targetPart = bestCandidate.part
+	aimbotState.targetPosition = bestCandidate.position
+	aimbotState.targetScreenPoint = bestCandidate.screenPoint
 
-		local cam = camera
-		local camPos = cam.CFrame.Position
-		local direction = bestCandidate.position - camPos
-		local magnitude = direction.Magnitude
-		if magnitude > 1e-3 then
-			direction = direction / magnitude
-			local targetCFrame = CFrame.new(camPos, camPos + direction)
-			local smoothing = clamp(aimConfig.smoothing or 0, 0, 1)
-			if smoothing <= 0 then
-				cam.CFrame = targetCFrame
-			else
-				local frames = dt * 60
-				local alpha = 1 - (1 - smoothing) ^ frames
-				alpha = clamp(alpha, 0, 1)
-				cam.CFrame = cam.CFrame:Lerp(targetCFrame, alpha)
-			end
-			end
-		end
+	local cam = camera
+	local camPos = cam.CFrame.Position
+	local direction = bestCandidate.position - camPos
+	local magnitude = direction.Magnitude
+	if magnitude > 1e-3 then
+	direction = direction / magnitude
+	local targetCFrame = CFrame.new(camPos, camPos + direction)
+	local smoothing = clamp(aimConfig.smoothing or 0, 0, 1)
+	if smoothing <= 0 then
+	cam.CFrame = targetCFrame
 	else
-		clearAimbotLock()
+	local frames = dt * 60
+	local alpha = 1 - (1 - smoothing) ^ frames
+	alpha = clamp(alpha, 0, 1)
+	cam.CFrame = cam.CFrame:Lerp(targetCFrame, alpha)
+	end
+	end
+	else
+	clearAimbotLock()
 	end
 end
+
 local function updateTargetingAssist(targetPlayer)
 	if not TARGETING_ASSIST_ENABLED then
 		if targetingAssistData.crosshair then
