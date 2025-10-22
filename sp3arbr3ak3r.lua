@@ -1483,7 +1483,7 @@ local function updatePlayerVisuals(dt)
 	if not camera then return end
 
 	-- Measure performance
-	local startTime = tick()
+	local startTime = os.clock()
 
 	proximityAlertManager:beginFrame()
 
@@ -1500,7 +1500,7 @@ local function updatePlayerVisuals(dt)
 
 	proximityAlertManager:endFrame()
 
-	performanceData.updateTime = tick() - startTime
+	performanceData.updateTime = os.clock() - startTime
 end
 
 local function createForPlayer(p)
