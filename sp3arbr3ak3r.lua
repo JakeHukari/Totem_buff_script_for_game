@@ -102,7 +102,8 @@ local CONFIG = {
 			{dist = 100, color = Color3.fromRGB(255,165,0), name = "ALERT"},
 			{dist = 200, color = Color3.fromRGB(255,255,0), name = "NEAR"},
 		},
-		predictionTime = 0.5  -- Predict 0.5 seconds ahead
+		predictionTime = 0.5, -- Predict 0.5 seconds ahead
+		ignoreTeammates = true
 	}
 }
 
@@ -116,6 +117,7 @@ local TARGETING_ASSIST_ENABLED = CONFIG.Features.TargetingAssist.enabled
 local PROXIMITY_ALERTS_ENABLED = CONFIG.Features.ProximityAlerts.enabled
 local PREDICTION_ZONES_ENABLED = CONFIG.Features.PredictionZones.enabled
 local PERFORMANCE_DISPLAY_ENABLED = CONFIG.Features.PerformanceDisplay.enabled
+local IGNORE_TEAMMATES = CONFIG.Tactical.ignoreTeammates
 
 local AUTOCLICK_CPS = CONFIG.Features.AutoClick.cps
 local AUTOCLICK_INTERVAL = 1 / AUTOCLICK_CPS
@@ -177,6 +179,31 @@ local NATO_COLORS = {
 -- State
 local localPlayer = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
+
+local function playersAreTeammates(a, b)
+	if not a or not b then return false end
+
+	local teamA, teamB = a.Team, b.Team
+	if teamA and teamB and teamA == teamB then
+		return true
+	end
+
+	local colorA, colorB = a.TeamColor, b.TeamColor
+	if colorA and colorB and colorA == colorB then
+		return true
+	end
+
+	return false
+end
+
+local function shouldIgnorePlayer(p)
+	if not p then return false end
+	if p == localPlayer then return true end
+	if IGNORE_TEAMMATES and playersAreTeammates(localPlayer, p) then
+		return true
+	end
+	return false
+end
 
 local created, binds = {}, {}
 local perPlayer = {}   -- [Player] = {bill, text, hum, outline, indicator, cache, smoothColor}
@@ -710,7 +737,7 @@ local function hitIsPlayer(hitInst)
 	local hum = model:FindFirstChildOfClass("Humanoid")
 	if not hum then return nil end
 	local p = Players:GetPlayerFromCharacter(model)
-	if not p or p == localPlayer then return nil end
+	if not p or shouldIgnorePlayer(p) then return nil end
 	return p, model
 end
 
@@ -929,6 +956,9 @@ end
 local function setESPVisible(p, visible)
 	local pp = perPlayer[p]
 	if not pp then return end
+	if shouldIgnorePlayer(p) then
+		visible = false
+	end
 	if pp.bill then pp.bill.Enabled = visible end
 	if pp.outline then pp.outline.Enabled = visible end
 end
@@ -1017,18 +1047,20 @@ local function updateNearestPlayer()
 	local myRootPos = myRoot.Position
 	local best, bestDist = nil, nil
 	for p,data in pairs(perPlayer) do
-		local character = p.Character or data.character
-		local root = data.root
-		if character then
-			if not root or root.Parent ~= character then
-				root = character:FindFirstChild("HumanoidRootPart")
-				data.root = root
+		if not shouldIgnorePlayer(p) then
+			local character = p.Character or data.character
+			local root = data.root
+			if character then
+				if not root or root.Parent ~= character then
+					root = character:FindFirstChild("HumanoidRootPart")
+					data.root = root
+				end
 			end
-		end
-		if root and root:IsDescendantOf(Workspace) then
-			local d = (root.Position - myRootPos).Magnitude
-			if not bestDist or d < bestDist then
-				best, bestDist = p, d
+			if root and root:IsDescendantOf(Workspace) then
+				local d = (root.Position - myRootPos).Magnitude
+				if not bestDist or d < bestDist then
+					best, bestDist = p, d
+				end
 			end
 		end
 	end
@@ -1310,6 +1342,28 @@ local function updatePredictionZone(p, data)
 	end
 end
 
+local function applyIgnoredPlayerState(p, data)
+	if not data then return end
+	setESPVisible(p, false)
+	local cache = data.cache
+	if cache then
+		cache.billEnabled = false
+		cache.indicatorVisible = false
+	end
+	hideIndicator(data.indicator)
+	if data.proximityAlert then
+		data.proximityAlert.Visible = false
+	end
+	if data.alertIndex ~= nil then
+		proximityAlertManager:releaseSlot(p)
+		data.alertIndex = nil
+	end
+	if data.predictionVector then
+		data.predictionVector.Enabled = false
+	end
+	setPredictionZoneVisible(data.predictionZone, false)
+end
+
 -- Optimized updateSinglePlayerVisual with smooth colors
 local function updateSinglePlayerVisual(p, data, dt)
 	local cache = data.cache
@@ -1434,10 +1488,14 @@ local function updatePlayerVisuals(dt)
 	proximityAlertManager:beginFrame()
 
 	for p,data in pairs(perPlayer) do
-		updateSinglePlayerVisual(p, data, dt)
-		updatePredictionVector(p, data)
-		updateProximityAlert(p, data)
-		updatePredictionZone(p, data)
+		if shouldIgnorePlayer(p) then
+			applyIgnoredPlayerState(p, data)
+		else
+			updateSinglePlayerVisual(p, data, dt)
+			updatePredictionVector(p, data)
+			updateProximityAlert(p, data)
+			updatePredictionZone(p, data)
+		end
 	end
 
 	proximityAlertManager:endFrame()
