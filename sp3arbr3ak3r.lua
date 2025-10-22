@@ -1,10 +1,10 @@
 --[[
-SP3ARBR3AK3R v1.13.2 ENHANCED EDITION
-Update Summary v1.13.2: Restored targeting assist UI + hit chance card helpers removed in merge, fixing execution breakage.
+SP3ARBR3AK3R v1.13.4 ENHANCED EDITION
+Update Summary v1.13.4: Rebuilt the control deck with responsive switches, dependency-aware availability states, and a global Ctrl+Enter master toggle that flips every feature in sync.
 
 Versioning Guidance:
-• Every future code change must bump the version by +0.0.1 (example: 1.13.2 → 1.13.3).
-• Add a single-line summary for the latest version directly under the header.
+- Every future code change must bump the version by +0.0.1 (example: 1.13.3 -> 1.13.4).
+- Add a single-line summary for the latest version directly under the header.
 
 CHANGELOG v1.13:
 • Fixed memory leaks in prediction features (attachments now properly tracked)
@@ -20,13 +20,14 @@ CHANGELOG v1.13:
 • Improved proximity alert positioning
 
 Guide (minimal)
-ESP [Ctrl+E] — player outlines + nametags. Nearest = bright red. Names scale by distance.
-Br3ak3r [Ctrl+Enter + Ctrl+LMB] — hide a single part; Ctrl+Z undo (max 25 recent). Hover preview while Ctrl held.
-AutoClick [Ctrl+K] — click only when cursor hits a non-local player.
-Sky Mode [Ctrl+L] — toggle bright daytime sky (client-only).
-Waypoints [Ctrl+MMB] — add/remove at cursor. Hebrew NATO names + unique colors. Persist after shutdown.
-PredVectors [Ctrl+V] — velocity prediction beams
-TargetAssist [Ctrl+T] — lead prediction crosshair
+All Toggles [Ctrl+Enter] – flip every feature on/off together; unavailable features stay contained.
+ESP [Ctrl+E] – player outlines + nametags. Nearest = bright red. Names scale by distance.
+Br3ak3r [Ctrl+B + Ctrl+LMB] – hide a single part; Ctrl+Z undo (max 25 recent). Hover preview while Ctrl held.
+AutoClick [Ctrl+K] – click only when cursor hits a non-local player.
+Sky Mode [Ctrl+L] – toggle bright daytime sky (client-only).
+Waypoints [Ctrl+MMB] – add/remove at cursor. Hebrew NATO names + unique colors. Persist after shutdown.
+PredVectors [Ctrl+V] – velocity prediction beams
+TargetAssist [Ctrl+T] – lead prediction crosshair
 ProxAlerts [Ctrl+A] — distance-based warnings
 PredZones [Ctrl+P] — future position spheres
 Performance [Ctrl+F] — toggle FPS/metrics display
@@ -167,9 +168,12 @@ local BG_INDICATOR = Color3.fromRGB(20,20,20)
 local TEXT_LIGHT = Color3.fromRGB(210,210,210)
 local TEXT_LIGHTER = Color3.fromRGB(220,220,220)
 local TEXT_GRAY = Color3.fromRGB(200,200,200)
-local DOT_RED = Color3.fromRGB(200,0,0)
-local DOT_GREEN = Color3.fromRGB(0,200,0)
 local SEPARATOR_GRAY = Color3.fromRGB(60,60,60)
+local SWITCH_OFF_COLOR = Color3.fromRGB(55,55,70)
+local SWITCH_ON_COLOR = Color3.fromRGB(0,195,120)
+local SWITCH_DISABLED_COLOR = Color3.fromRGB(70,70,80)
+local SWITCH_KNOB_COLOR = Color3.fromRGB(245,245,245)
+local STATUS_WARN_COLOR = Color3.fromRGB(255,120,90)
 
 -- Name tag and indicator sizing
 local NAME_BASE_W, NAME_BASE_H = 120, 28
@@ -201,7 +205,7 @@ local NATO_COLORS = {
 local localPlayer = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
-local function playersAreTeammates(a, b)
+function playersAreTeammates(a, b)
 	if not a or not b then return false end
 
 	local teamA, teamB = a.Team, b.Team
@@ -220,7 +224,7 @@ local function playersAreTeammates(a, b)
 	return false
 end
 
-local function shouldIgnorePlayer(p)
+function shouldIgnorePlayer(p)
 	if not p then return false end
 	if p == localPlayer then return true end
 	if IGNORE_TEAMMATES and playersAreTeammates(localPlayer, p) then
@@ -246,8 +250,11 @@ local wpIndicatorMap = {} -- [Part] = Frame
 local wpNameIndex = 0
 local indicatorFolder
 
--- Toggle UI setters
-local setDotESP, setDotCB, setDotAC, setDotSKY, setDotPV, setDotAim, setDotTA, setDotPA, setDotPZ, setDotPerf
+-- Toggle system (UI + behavior)
+local ToggleDefinitions = {}
+local toggleWidgets = {}     -- [id] = {setState=function, setAvailability=function, button=TextButton}
+local keyToToggle = {}       -- [Enum.KeyCode] = toggleDef
+local globalToggleAllState = false -- false => next Ctrl+Enter enable all, true => next disables
 
 -- Hover highlight (Br3ak3r)
 local hoverHL
@@ -264,7 +271,7 @@ local ObjectPools = {
 	alerts = {pool = {}, size = 0}
 }
 
-local function getFromPool(poolName)
+function getFromPool(poolName)
 	local poolData = ObjectPools[poolName]
 	if not poolData then
 		return nil
@@ -280,7 +287,7 @@ local function getFromPool(poolName)
 	return obj
 end
 
-local function returnToPool(poolName, obj)
+function returnToPool(poolName, obj)
 	if not obj then
 		return
 	end
@@ -313,7 +320,7 @@ end
 local predictionZoneCache = {}
 local predictionZoneCacheSize = 0
 
-local function getPredictionZone()
+function getPredictionZone()
 	if predictionZoneCacheSize > 0 then
 		local zone = predictionZoneCache[predictionZoneCacheSize]
 		predictionZoneCache[predictionZoneCacheSize] = nil
@@ -334,7 +341,7 @@ local function getPredictionZone()
 	return zone
 end
 
-local function returnPredictionZone(zone)
+function returnPredictionZone(zone)
 	if predictionZoneCacheSize < CONFIG.Performance.pooling.maxZones then
 		zone.Parent = nil
 		zone.Transparency = 1
@@ -350,7 +357,7 @@ end
 -- ============================================================
 local colorSmoothingData = {}
 
-local function getSmoothColor(p, targetColor, dt)
+function getSmoothColor(p, targetColor, dt)
 	local data = colorSmoothingData[p]
 	if not data then
 		data = {current = targetColor, target = targetColor}
@@ -383,7 +390,7 @@ local performanceData = {
 
 local performanceLabel
 
-local function createPerformanceDisplay()
+function createPerformanceDisplay()
 	if performanceLabel then return end
 	
 	performanceLabel = Instance.new("TextLabel")
@@ -404,7 +411,7 @@ local function createPerformanceDisplay()
 	corner.Parent = performanceLabel
 end
 
-local function updatePerformanceDisplay(dt)
+function updatePerformanceDisplay(dt)
 	if not PERFORMANCE_DISPLAY_ENABLED then
 		if performanceLabel then performanceLabel.Visible = false end
 		return
@@ -445,14 +452,14 @@ local FORMAT_NAME_DIST_TOOL_HP = "%s [%s]  •  %dm  •  %dhp"
 local FORMAT_NAME_DIST_TOOL = "%s [%s] · %dm"
 
 -- Custom clamp for Lua 5.1 compatibility
-local function customClamp(v, lo, hi)
+function customClamp(v, lo, hi)
 	if v < lo then return lo
 	elseif v > hi then return hi
 	else return v end
 end
 
 -- Color gradient function for distance-based nametag colors
-local function getDistanceColor(distance)
+function getDistanceColor(distance)
 	local t = customClamp((distance - GRADIENT_MIN_DIST) / (GRADIENT_MAX_DIST - GRADIENT_MIN_DIST), 0, 1)
 	
 	if t > 0.83 then  -- Very far: dark blue to blue
@@ -501,30 +508,30 @@ local function getDistanceColor(distance)
 end
 
 -- Helpers
-local function track(i) created[#created+1] = i; return i end
-local function bind(c) binds[#binds+1] = c; return c end
+function track(i) created[#created+1] = i; return i end
+function bind(c) binds[#binds+1] = c; return c end
 
-local function disconnectAll()
+function disconnectAll()
 	for i = 1, #binds do
 		pcall(function() binds[i]:Disconnect() end)
 	end
 	clear(binds)
 end
 
-local function destroyAll()
+function destroyAll()
 	for i = 1, #created do
 		pcall(function() created[i]:Destroy() end)
 	end
 	clear(created)
 end
 
-local function safeDestroy(x) 
+function safeDestroy(x) 
 	if x then 
 		pcall(function() x:Destroy() end) 
 	end 
 end
 
-local function makeIntervalRunner(interval)
+function makeIntervalRunner(interval)
 	local acc = 0
 	return function(dt)
 		acc = acc + dt
@@ -536,7 +543,7 @@ local function makeIntervalRunner(interval)
 	end
 end
 
-local function rebuildBrokenIgnore()
+function rebuildBrokenIgnore()
 	if not next(brokenSet) then
 		clear(brokenIgnoreCache)
 		brokenCacheDirty = false
@@ -569,48 +576,146 @@ do
 end
 
 -- Guide UI
-local function mkToggleRow(label, keybind)
+function mkSwitchRow(def)
 	local row = Instance.new("Frame")
+	row.Name = "Toggle_"..def.id
 	row.BackgroundTransparency = 1
-	row.Size = UDim2.new(1,0,0,16)
-	
-	local dot = Instance.new("Frame")
-	dot.Name = "Dot"
-	dot.Size = UDim2.fromOffset(10,10)
-	dot.Position = UDim2.new(0,0,0.5,-5)
-	dot.BackgroundColor3 = DOT_RED
-	dot.BorderSizePixel = 0
-	dot.Parent = row
-	
-	local dc = Instance.new("UICorner")
-	dc.CornerRadius = UDim.new(1,0)
-	dc.Parent = dot
-	
-	local txt = Instance.new("TextLabel")
-	txt.BackgroundTransparency = 1
-	txt.Position = UDim2.new(0,16,0,-2)
-	txt.Size = UDim2.new(1,-16,1,0)
-	txt.TextXAlignment = Enum.TextXAlignment.Left
-	txt.TextYAlignment = Enum.TextYAlignment.Top
-	txt.Font = Enum.Font.Gotham
-	txt.TextSize = 12
-	txt.TextColor3 = TEXT_LIGHT
-	txt.Text = label.."  ["..keybind.."]"
-	txt.Parent = row
-	
-	return row, function(active) 
-		dot.BackgroundColor3 = active and DOT_GREEN or DOT_RED 
+	row.Size = UDim2.new(1,0,0,34)
+
+	local button = Instance.new("TextButton")
+	button.Name = "Hitbox"
+	button.BackgroundTransparency = 1
+	button.AutoButtonColor = false
+	button.Text = ""
+	button.Size = UDim2.new(1,0,1,0)
+	button.ZIndex = 1002
+	button.Parent = row
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Label"
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.new(0,0,0,0)
+	title.Size = UDim2.new(0.55,0,0,16)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextYAlignment = Enum.TextYAlignment.Top
+	title.Font = Enum.Font.Gotham
+	title.TextSize = 12
+	title.TextColor3 = TEXT_LIGHT
+	title.Text = def.label
+	title.ZIndex = 1002
+	title.Parent = row
+
+	local key = Instance.new("TextLabel")
+	key.Name = "KeyLabel"
+	key.BackgroundTransparency = 1
+	key.Position = UDim2.new(0.55,0,0,0)
+	key.Size = UDim2.new(0.25,0,0,16)
+	key.TextXAlignment = Enum.TextXAlignment.Left
+	key.TextYAlignment = Enum.TextYAlignment.Top
+	key.Font = Enum.Font.Gotham
+	key.TextSize = 11
+	key.TextColor3 = TEXT_GRAY
+	key.Text = def.keyLabel or ""
+	key.ZIndex = 1002
+	key.Parent = row
+
+	local status = Instance.new("TextLabel")
+	status.Name = "Status"
+	status.BackgroundTransparency = 1
+	status.Position = UDim2.new(0,0,0,18)
+	status.Size = UDim2.new(0.8,0,0,12)
+	status.Font = Enum.Font.Gotham
+	status.TextSize = 10
+	status.TextColor3 = STATUS_WARN_COLOR
+	status.TextXAlignment = Enum.TextXAlignment.Left
+	status.TextYAlignment = Enum.TextYAlignment.Top
+	status.Text = ""
+	status.ZIndex = 1002
+	status.Parent = row
+
+	local switch = Instance.new("Frame")
+	switch.Name = "Switch"
+	switch.AnchorPoint = Vector2.new(1,0.5)
+	switch.Position = UDim2.new(1,-4,0.5,0)
+	switch.Size = UDim2.fromOffset(46,20)
+	switch.BackgroundColor3 = SWITCH_OFF_COLOR
+	switch.BorderSizePixel = 0
+	switch.ZIndex = 1002
+	switch.Parent = row
+
+	local switchCorner = Instance.new("UICorner")
+	switchCorner.CornerRadius = UDim.new(1,0)
+	switchCorner.Parent = switch
+
+	local knob = Instance.new("Frame")
+	knob.Name = "Knob"
+	knob.Size = UDim2.fromOffset(18,18)
+	knob.Position = UDim2.new(0,1,0.5,-9)
+	knob.BackgroundColor3 = SWITCH_KNOB_COLOR
+	knob.BorderSizePixel = 0
+	knob.ZIndex = 1003
+	knob.Parent = switch
+
+	local knobCorner = Instance.new("UICorner")
+	knobCorner.CornerRadius = UDim.new(1,0)
+	knobCorner.Parent = knob
+
+	local function setState(active)
+		if active then
+			switch.BackgroundColor3 = SWITCH_ON_COLOR
+			switch.BackgroundTransparency = 0
+			knob.BackgroundTransparency = 0
+			knob.Position = UDim2.new(1,-19,0.5,-9)
+		else
+			switch.BackgroundColor3 = SWITCH_OFF_COLOR
+			switch.BackgroundTransparency = 0
+			knob.BackgroundTransparency = 0
+			knob.Position = UDim2.new(0,1,0.5,-9)
+		end
+	end
+
+	local function setAvailability(available, reasonText)
+	if available then
+		title.TextColor3 = TEXT_LIGHT
+		key.TextColor3 = TEXT_GRAY
+		switch.BackgroundTransparency = 0
+		knob.BackgroundTransparency = 0
+		button.Active = true
+		button.Selectable = true
+		if reasonText and reasonText ~= "" then
+			status.Text = reasonText
+			status.TextColor3 = STATUS_WARN_COLOR
+		else
+			status.Text = ""
+			status.TextColor3 = TEXT_GRAY
+		end
+	else
+		title.TextColor3 = TEXT_GRAY
+		key.TextColor3 = Color3.fromRGB(140,140,140)
+		switch.BackgroundTransparency = 0.35
+		knob.BackgroundTransparency = 0.35
+		button.Active = false
+		button.Selectable = false
+		status.Text = reasonText or "Unavailable"
+		status.TextColor3 = STATUS_WARN_COLOR
 	end
 end
 
-local function ensureGuide()
+	return row, {
+		setState = setState,
+		setAvailability = setAvailability,
+		button = button
+	}
+end
+
+function ensureGuide()
 	if guideFrame and guideFrame.Parent then return end
 
 	guideFrame = track(Instance.new("Frame"))
 	guideFrame.Name = "SB3_Guide"
 	guideFrame.AnchorPoint = Vector2.new(0,0.5)
 	guideFrame.Position = UDim2.fromScale(0.015, 0.5)
-	guideFrame.Size = UDim2.fromOffset(290, 310)  -- Increased height for aimbot toggle
+	guideFrame.Size = UDim2.fromOffset(290, 420)  -- Expanded space for switchboard + waypoint list
 	guideFrame.BackgroundColor3 = BG_DARK
 	guideFrame.BackgroundTransparency = 0.25
 	guideFrame.BorderSizePixel = 0
@@ -632,7 +737,7 @@ local function ensureGuide()
 		local title = Instance.new("TextLabel")
 		title.BackgroundTransparency = 1
 		title.Size = UDim2.fromOffset(0,18)
-		title.Text = "SP3ARBR3AK3R v1.13 ENHANCED"
+		title.Text = "SP3ARBR3AK3R v1.13.4 ENHANCED"
 		title.TextXAlignment = Enum.TextXAlignment.Left
 		title.TextYAlignment = Enum.TextYAlignment.Top
 		title.Font = Enum.Font.GothamBold
@@ -641,39 +746,38 @@ local function ensureGuide()
 		title.ZIndex = 1001
 		title.Parent = guideFrame
 
+		local toggleBlockHeight = 360
 		local togglesSection = track(Instance.new("Frame"))
 		togglesSection.BackgroundTransparency = 1
 		togglesSection.Position = UDim2.new(0,0,0,22)
-		togglesSection.Size = UDim2.new(1,0,0,196) -- Increased for aimbot toggle
+		togglesSection.Size = UDim2.new(1,0,0,toggleBlockHeight)
 		togglesSection.Parent = guideFrame
 
 		local list = track(Instance.new("UIListLayout"))
 		list.FillDirection=Enum.FillDirection.Vertical
 		list.SortOrder=Enum.SortOrder.LayoutOrder
-		list.Padding=UDim.new(0,2)
+		list.Padding=UDim.new(0,4)
 		list.Parent=togglesSection
 
-		local r1, s1 = mkToggleRow("ESP","Ctrl+E"); r1.Parent = togglesSection; setDotESP = s1
-		local r2, s2 = mkToggleRow("Br3ak3r","Ctrl+Enter"); r2.Parent = togglesSection; setDotCB = s2
-		local r3, s3 = mkToggleRow("AutoClick","Ctrl+K"); r3.Parent = togglesSection; setDotAC = s3
-		local r4, s4 = mkToggleRow("Sky Mode","Ctrl+L"); r4.Parent = togglesSection; setDotSKY = s4
-		local r5, s5 = mkToggleRow("PredVectors","Ctrl+V"); r5.Parent = togglesSection; setDotPV = s5
-		local r6, s6 = mkToggleRow("Aimbot","Ctrl+J"); r6.Parent = togglesSection; setDotAim = s6
-		local r7, s7 = mkToggleRow("TargetAssist","Ctrl+T"); r7.Parent = togglesSection; setDotTA = s7
-		local r8, s8 = mkToggleRow("ProxAlerts","Ctrl+A"); r8.Parent = togglesSection; setDotPA = s8
-		local r9, s9 = mkToggleRow("PredZones","Ctrl+P"); r9.Parent = togglesSection; setDotPZ = s9
-		local r10, s10 = mkToggleRow("Performance","Ctrl+F"); r10.Parent = togglesSection; setDotPerf = s10
+		for _,def in ipairs(ToggleDefinitions) do
+			local row, widget = mkSwitchRow(def)
+			row.Parent = togglesSection
+			toggleWidgets[def.id] = widget
+			widget.button.MouseButton1Click:Connect(function()
+				toggleFeature(def)
+			end)
+		end
 
 		local sep = track(Instance.new("Frame"))
 		sep.Size=UDim2.new(1,0,0,1)
-		sep.Position=UDim2.new(0,0,0,22+196+6)
+		sep.Position=UDim2.new(0,0,0,22+toggleBlockHeight+6)
 		sep.BackgroundColor3=SEPARATOR_GRAY
 		sep.BorderSizePixel=0
 		sep.Parent=guideFrame
 
 		local listTitle = Instance.new("TextLabel")
 		listTitle.BackgroundTransparency = 1
-		listTitle.Position = UDim2.new(0,0,0,22+196+10)
+		listTitle.Position = UDim2.new(0,0,0,22+toggleBlockHeight+10)
 		listTitle.Size = UDim2.new(1,0,0,16)
 		listTitle.Text = "Waypoints:"
 		listTitle.TextColor3 = TEXT_GRAY
@@ -687,8 +791,8 @@ local function ensureGuide()
 		wpScroll.Name = "WPScroll"
 		wpScroll.BackgroundTransparency = 1
 		wpScroll.BorderSizePixel = 0
-		wpScroll.Position = UDim2.new(0,0,0,22+196+28)
-		wpScroll.Size = UDim2.new(1,0,1,-(22+196+36))
+		wpScroll.Position = UDim2.new(0,0,0,22+toggleBlockHeight+28)
+		wpScroll.Size = UDim2.new(1,0,1,-(22+toggleBlockHeight+36))
 		wpScroll.ScrollBarThickness = 4
 		wpScroll.CanvasSize = UDim2.new(0,0,0,0)
 		wpScroll.ZIndex = 1001
@@ -700,22 +804,115 @@ local function ensureGuide()
 		wpList.Padding=UDim.new(0,2)
 		wpList.Parent=wpScroll
 	end
+	refreshToggleUI()
 end
 
-local function updateToggleDots()
-	if setDotESP then setDotESP(ESP_ENABLED) end
-	if setDotCB then setDotCB(CLICKBREAK_ENABLED) end
-	if setDotAC then setDotAC(AUTOCLICK_ENABLED) end
-	if setDotSKY then setDotSKY(SKY_MODE_ENABLED) end
-	if setDotPV then setDotPV(PREDICTION_VECTORS_ENABLED) end
-	if setDotAim then setDotAim(AIMBOT_ENABLED) end
-	if setDotTA then setDotTA(TARGETING_ASSIST_ENABLED) end
-	if setDotPA then setDotPA(PROXIMITY_ALERTS_ENABLED) end
-	if setDotPZ then setDotPZ(PREDICTION_ZONES_ENABLED) end
-	if setDotPerf then setDotPerf(PERFORMANCE_DISPLAY_ENABLED) end
+local function evaluateToggleAvailability(def)
+	if not def.isAvailable then
+		return true, nil
+	end
+
+	local ok, result, msg = pcall(def.isAvailable, def)
+	if not ok then
+		return false, "Error: "..tostring(result)
+	end
+
+	if type(result) == "table" then
+		local available = result.available ~= false
+		return available, result.reason
+	end
+
+	if result == false then
+		return false, msg or "Unavailable"
+	end
+
+	return true, msg
 end
 
-local function screenToRay(x,y)
+function refreshToggleUI()
+	for _,def in ipairs(ToggleDefinitions) do
+		local widget = toggleWidgets[def.id]
+		local available, reason = evaluateToggleAvailability(def)
+		def._available = available
+
+		local current = false
+		if def.getState then
+			local ok, state = pcall(def.getState, def)
+			current = ok and state or false
+		end
+
+		if widget then
+			local statusMsg = def._statusMsg
+			if not available then
+				statusMsg = statusMsg or reason
+			end
+			widget.setAvailability(available, statusMsg or reason)
+			widget.setState(available and current or false)
+		end
+	end
+end
+
+local function applyFeatureState(def, desired)
+	local available, reason = evaluateToggleAvailability(def)
+	def._available = available
+
+	if not available then
+		if def.setState then
+			pcall(def.setState, def, false)
+		end
+		def._statusMsg = reason or "Unavailable"
+		return not desired
+	end
+
+	local statusMsg
+	local success = true
+	if def.setState then
+		local ok, result, msg = pcall(def.setState, def, desired)
+		if not ok then
+			success = false
+			statusMsg = tostring(result)
+		elseif result == false then
+			success = false
+			statusMsg = tostring(msg or "Unavailable")
+		else
+			statusMsg = msg
+		end
+	end
+
+	if success then
+		def._statusMsg = statusMsg
+	else
+		def._statusMsg = statusMsg or "Unavailable"
+	end
+
+	return success or not desired
+end
+
+function toggleFeature(def)
+	local current = def.getState and def.getState(def) or false
+	local target = not current
+	applyFeatureState(def, target)
+	refreshToggleUI()
+end
+
+function setAllFeatures(enabled)
+	local failures = 0
+	for _,def in ipairs(ToggleDefinitions) do
+		if def.id ~= "GLOBAL_ALL" then
+			local applied = applyFeatureState(def, enabled)
+			if not enabled then
+				applied = true
+			end
+			if not applied then
+				failures = failures + 1
+			end
+		end
+	end
+	refreshToggleUI()
+	return failures == 0, failures
+end
+
+function screenToRay(x,y)
 	camera = Workspace.CurrentCamera
 	if not camera then return end
 	local inset = GuiService:GetGuiInset()
@@ -723,7 +920,7 @@ local function screenToRay(x,y)
 	return camera:ScreenPointToRay(vx,vy,0)
 end
 
-local function getMouseRay()
+function getMouseRay()
 	local loc = UserInputService:GetMouseLocation()
 	local ray = screenToRay(loc.X, loc.Y)
 	if not ray then return end
@@ -731,7 +928,7 @@ local function getMouseRay()
 end
 
 -- Optimized worldRaycast with reusable RaycastParams
-local function worldRaycast(origin, direction, ignoreLocalChar, extraIgnore)
+function worldRaycast(origin, direction, ignoreLocalChar, extraIgnore)
 	if brokenCacheDirty then
 		rebuildBrokenIgnore()
 	end
@@ -784,7 +981,7 @@ local function worldRaycast(origin, direction, ignoreLocalChar, extraIgnore)
 	return Workspace:Raycast(origin, direction, raycastParams)
 end
 
-local function hitIsPlayer(hitInst)
+function hitIsPlayer(hitInst)
 	if not hitInst or not hitInst:IsA("BasePart") then return nil end
 	local model = hitInst:FindFirstAncestorOfClass("Model")
 	if not model then return nil end
@@ -796,7 +993,7 @@ local function hitIsPlayer(hitInst)
 end
 
 -- Indicators helpers
-local function ensureIndicator(parent, key)
+function ensureIndicator(parent, key)
 	-- Try to get from pool first
 	local frame = getFromPool("indicators")
 	if frame then
@@ -848,7 +1045,7 @@ local function ensureIndicator(parent, key)
 	return frame
 end
 
-local function placeIndicator(frame, color, nameText, screenPos, angleRad)
+function placeIndicator(frame, color, nameText, screenPos, angleRad)
 	if not frame then return end
 	local arrow = frame:FindFirstChild("Arrow")
 	if arrow then
@@ -864,12 +1061,12 @@ local function placeIndicator(frame, color, nameText, screenPos, angleRad)
 	frame.Visible = true
 end
 
-local function hideIndicator(frame) 
+function hideIndicator(frame) 
 	if frame then frame.Visible = false end 
 end
 
 -- Optimized projectToEdge with cached calculations
-local function projectToEdge(worldPos)
+function projectToEdge(worldPos)
 	if not camera then return nil end
 	local v, onScreen = camera:WorldToViewportPoint(worldPos)
 	local viewport = camera.ViewportSize
@@ -902,7 +1099,7 @@ local function projectToEdge(worldPos)
 end
 
 -- Br3ak3r
-local function markBroken(part)
+function markBroken(part)
 	if not part or not part:IsA("BasePart") then return end
 	brokenSet[part] = true
 	brokenCacheDirty = true
@@ -913,7 +1110,7 @@ local function markBroken(part)
 	part.Transparency = 1
 end
 
-local function unbreakLast()
+function unbreakLast()
 	local e = remove(undoStack)
 	if not e or not e.part or not e.part:IsDescendantOf(game) then
 		if e and e.part then
@@ -930,7 +1127,7 @@ local function unbreakLast()
 end
 
 local sweepAccum = 0
-local function sweepUndo(dt)
+function sweepUndo(dt)
 	sweepAccum = sweepAccum + dt
 	if sweepAccum < 2 then return end
 	sweepAccum = 0
@@ -949,7 +1146,7 @@ local function sweepUndo(dt)
 	end
 end
 
-local function pruneBrokenSet()
+function pruneBrokenSet()
 	local removed = false
 	for part,_ in pairs(brokenSet) do
 		if not part or not part:IsDescendantOf(Workspace) then
@@ -968,7 +1165,7 @@ local runCleanupSweep = makeIntervalRunner(CONFIG.Performance.updateRates.cleanu
 local runColorSmooth = makeIntervalRunner(CONFIG.Performance.updateRates.colorSmooth)
 
 -- ESP (ENHANCED v1.13 - Fixed memory leaks)
-local function destroyPerPlayer(p)
+function destroyPerPlayer(p)
 	local pp = perPlayer[p]
 	if not pp then return end
 	
@@ -1007,7 +1204,7 @@ local function destroyPerPlayer(p)
 	perPlayer[p] = nil
 end
 
-local function setESPVisible(p, visible)
+function setESPVisible(p, visible)
 	local pp = perPlayer[p]
 	if not pp then return end
 	if shouldIgnorePlayer(p) then
@@ -1017,7 +1214,7 @@ local function setESPVisible(p, visible)
 	if pp.outline then pp.outline.Enabled = visible end
 end
 
-local function createOutlineForCharacter(character, enabled)
+function createOutlineForCharacter(character, enabled)
 	local h = Instance.new("Highlight")
 	h.Name="SB3_PinkOutline"
 	h.Adornee=character
@@ -1030,13 +1227,13 @@ local function createOutlineForCharacter(character, enabled)
 	return h
 end
 
-local function getEquippedTool(character)
+function getEquippedTool(character)
 	local tool = character:FindFirstChildOfClass("Tool")
 	if tool then return tool.Name end
 	return nil
 end
 
-local function billboardFor(p, character)
+function billboardFor(p, character)
 	local head = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
 	local hum = character:FindFirstChildOfClass("Humanoid")
 	if not head or not hum then return end
@@ -1074,7 +1271,7 @@ local function billboardFor(p, character)
 	perPlayer[p] = entry
 end
 
-local function rebuildForCharacter(p, character)
+function rebuildForCharacter(p, character)
 	destroyPerPlayer(p)
 	if not character then return end
 	
@@ -1091,7 +1288,7 @@ local function rebuildForCharacter(p, character)
 	data.hum = character:FindFirstChildOfClass("Humanoid")
 end
 
-local function updateNearestPlayer()
+function updateNearestPlayer()
 	local myChar = localPlayer.Character
 	local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
 	if not myRoot then
@@ -1122,7 +1319,7 @@ local function updateNearestPlayer()
 end
 
 -- Prediction Vector (FIXED attachment cleanup)
-local function ensurePredictionVector(p, root)
+function ensurePredictionVector(p, root)
 	local pp = perPlayer[p]
 	if not pp then return end
 	if not pp.predictionVector then
@@ -1150,7 +1347,7 @@ local function ensurePredictionVector(p, root)
 	return pp.predictionVector
 end
 
-local function updatePredictionVector(p, data)
+function updatePredictionVector(p, data)
 	if not PREDICTION_VECTORS_ENABLED or not data.root then
 		if data.predictionVector then data.predictionVector.Enabled = false end
 		return
@@ -1191,7 +1388,7 @@ local proximityAlertManager = {
 	nextSlot = 0
 }
 
-local function insertFreeSlot(sortedList, value)
+function insertFreeSlot(sortedList, value)
 	local inserted = false
 	for i = 1, #sortedList do
 		if value < sortedList[i] then
@@ -1280,7 +1477,7 @@ function proximityAlertManager:reset()
 	self.nextSlot = 0
 end
 
-local function updateProximityAlert(p, data)
+function updateProximityAlert(p, data)
 	if not PROXIMITY_ALERTS_ENABLED then
 		if data.proximityAlert then data.proximityAlert.Visible = false end
 		if data.alertIndex ~= nil then
@@ -1351,7 +1548,7 @@ local function updateProximityAlert(p, data)
 	end
 end
 
-local function setPredictionZoneVisible(zone, visible)
+function setPredictionZoneVisible(zone, visible)
 	if not zone then return end
 	
 	local desiredTransparency = visible and PREDICTION_ZONE_TRANSPARENCY or 1
@@ -1367,7 +1564,7 @@ local function setPredictionZoneVisible(zone, visible)
 end
 
 -- Prediction Zones (ENHANCED with caching)
-local function updatePredictionZone(p, data)
+function updatePredictionZone(p, data)
 	if not PREDICTION_ZONES_ENABLED or not data.root then
 		setPredictionZoneVisible(data.predictionZone, false)
 		return
@@ -1396,7 +1593,7 @@ local function updatePredictionZone(p, data)
 	end
 end
 
-local function applyIgnoredPlayerState(p, data)
+function applyIgnoredPlayerState(p, data)
 	if not data then return end
 	setESPVisible(p, false)
 	local cache = data.cache
@@ -1419,7 +1616,7 @@ local function applyIgnoredPlayerState(p, data)
 end
 
 -- Optimized updateSinglePlayerVisual with smooth colors
-local function updateSinglePlayerVisual(p, data, dt)
+function updateSinglePlayerVisual(p, data, dt)
 	local cache = data.cache
 	if not cache then
 		cache = {}
@@ -1532,7 +1729,7 @@ local function updateSinglePlayerVisual(p, data, dt)
 end
 
 local visualUpdateTimer = 0
-local function updatePlayerVisuals(dt)
+function updatePlayerVisuals(dt)
 	camera = Workspace.CurrentCamera or camera
 	if not camera then return end
 
@@ -1557,7 +1754,7 @@ local function updatePlayerVisuals(dt)
 	performanceData.updateTime = os.clock() - startTime
 end
 
-local function createForPlayer(p)
+function createForPlayer(p)
 	local function onSpawn(character)
 		task.wait(0.1)
 		rebuildForCharacter(p, character)
@@ -1599,7 +1796,7 @@ local hitChanceCardData = {
 	lastTarget = nil
 }
 
-local function getTargetLeadPosition(targetRoot, bulletSpeed)
+function getTargetLeadPosition(targetRoot, bulletSpeed)
 	if not targetRoot then return nil end
 
 	local myChar = localPlayer.Character
@@ -1654,7 +1851,7 @@ local function getTargetLeadPosition(targetRoot, bulletSpeed)
 	return targetRoot.Position + (velocity * t)
 end
 
-local function createTargetingCrosshair()
+function createTargetingCrosshair()
 	if targetingAssistData.crosshair then return end
 	if not screenGui then return end
 
@@ -1717,7 +1914,7 @@ local function createTargetingCrosshair()
 	targetingAssistData.leadIndicator = leadIndicator
 end
 
-local function ensureHitChanceCard()
+function ensureHitChanceCard()
 	local data = hitChanceCardData
 	local frame = data.frame
 	if frame and frame.Parent then
@@ -1793,7 +1990,7 @@ local function ensureHitChanceCard()
 	return frame
 end
 
-local function destroyHitChanceCard()
+function destroyHitChanceCard()
 	if hitChanceCardData.frame then
 		safeDestroy(hitChanceCardData.frame)
 	end
@@ -1806,14 +2003,14 @@ local function destroyHitChanceCard()
 	hitChanceCardData.lastTarget = nil
 end
 
-local function hideHitChanceCard()
+function hideHitChanceCard()
 	if hitChanceCardData.shouldShow then
 		hitChanceCardData.shouldShow = false
 		hitChanceCardData.lastTarget = nil
 	end
 end
 
-local function stepHitChanceCardFade(dt)
+function stepHitChanceCardFade(dt)
 	local frame = hitChanceCardData.frame
 	if not frame then return end
 
@@ -1851,7 +2048,7 @@ local function stepHitChanceCardFade(dt)
 	end
 end
 
-local function updateHitChanceCard(dt)
+function updateHitChanceCard(dt)
 	local shouldDisplay = false
 	local labelText, cardPosition
 	local targetForCard
@@ -1960,14 +2157,14 @@ local aimbotState = {
 	targetScreenPoint = nil
 }
 
-local function clearAimbotLock()
+function clearAimbotLock()
 	aimbotState.targetPlayer = nil
 	aimbotState.targetPart = nil
 	aimbotState.targetPosition = nil
 	aimbotState.targetScreenPoint = nil
 end
 
-local function ensureAimbotCircle()
+function ensureAimbotCircle()
 	if aimbotState.fovCircle and aimbotState.fovCircle.Parent then
 	return aimbotState.fovCircle
 	end
@@ -1996,7 +2193,7 @@ local function ensureAimbotCircle()
 	return circle
 end
 
-local function destroyAimbotVisuals()
+function destroyAimbotVisuals()
 	if aimbotState.fovCircle then
 	safeDestroy(aimbotState.fovCircle)
 	end
@@ -2004,13 +2201,13 @@ local function destroyAimbotVisuals()
 	aimbotState.fovStroke = nil
 end
 
-local function getMouseViewportPosition()
+function getMouseViewportPosition()
 	local loc = UserInputService:GetMouseLocation()
 	local inset = GuiService:GetGuiInset()
 	return Vector2.new(loc.X - inset.X, loc.Y - inset.Y)
 end
 
-local function updateAimbotCircle()
+function updateAimbotCircle()
 	local circle = ensureAimbotCircle()
 	local aimConfig = CONFIG.Features.Aimbot
 	local visible = AIMBOT_ENABLED and aimConfig.fovVisible
@@ -2032,7 +2229,7 @@ local function updateAimbotCircle()
 	end
 end
 
-local function getCharacterAimPart(character, aimConfig)
+function getCharacterAimPart(character, aimConfig)
 	if not character then return nil end
 	local aimPartSetting = aimConfig.aimPart
 	if typeof(aimPartSetting) == "table" then
@@ -2059,7 +2256,7 @@ local function getCharacterAimPart(character, aimConfig)
 	return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
 end
 
-local function computeAimPosition(part, root, aimConfig)
+function computeAimPosition(part, root, aimConfig)
 	if not part or not part:IsA("BasePart") then
 	return nil
 	end
@@ -2074,7 +2271,7 @@ local function computeAimPosition(part, root, aimConfig)
 	return position
 end
 
-local function evaluateAimbotCandidate(player, data, mousePos, radius, aimConfig)
+function evaluateAimbotCandidate(player, data, mousePos, radius, aimConfig)
 	local character = player and (player.Character or (data and data.character))
 	if not character then return nil end
 	local aimPart = getCharacterAimPart(character, aimConfig)
@@ -2112,7 +2309,7 @@ local function evaluateAimbotCandidate(player, data, mousePos, radius, aimConfig
 	}
 end
 
-local function updateAimbot(dt)
+function updateAimbot(dt)
 	updateAimbotCircle()
 
 	if not AIMBOT_ENABLED then
@@ -2182,7 +2379,7 @@ local function updateAimbot(dt)
 	end
 end
 
-local function updateTargetingAssist(targetPlayer)
+function updateTargetingAssist(targetPlayer)
 	if not TARGETING_ASSIST_ENABLED then
 		if targetingAssistData.crosshair then
 			targetingAssistData.crosshair.Visible = false
@@ -2250,16 +2447,16 @@ local function updateTargetingAssist(targetPlayer)
 end
 
 -- Waypoints
-local function getWpContainer() 
+function getWpContainer() 
 	return Workspace:FindFirstChild("SP_WP_CONTAINER") 
 end
 
-local function nextWpNameAndColor() 
+function nextWpNameAndColor() 
 	wpNameIndex = (wpNameIndex % #HEBREW_NATO) + 1
 	return HEBREW_NATO[wpNameIndex], NATO_COLORS[wpNameIndex] 
 end
 
-local function canAddWaypoint()
+function canAddWaypoint()
 	local container = getWpContainer()
 	if not container then return true end
 	
@@ -2275,7 +2472,7 @@ local function canAddWaypoint()
 	return true
 end
 
-local function setWaypointAppearance(part, name, color)
+function setWaypointAppearance(part, name, color)
 	part.Name = "SP_WP_"..name
 	part:SetAttribute("SB3_Name", name)
 	part:SetAttribute("SB3_Color", color)
@@ -2300,7 +2497,7 @@ local function setWaypointAppearance(part, name, color)
 	t.Parent = bb
 end
 
-local function refreshWaypointGuide()
+function refreshWaypointGuide()
 	local container = getWpContainer()
 	local parts = {}
 	
@@ -2362,7 +2559,7 @@ local function refreshWaypointGuide()
 	wpScroll.CanvasSize = UDim2.new(0,0,0,canvas)
 end
 
-local function ensureWpIndicator(part)
+function ensureWpIndicator(part)
 	local key = "WI_"..part:GetDebugId()
 	local frame = wpIndicatorMap[part]
 	if frame and frame.Parent then return frame end
@@ -2371,7 +2568,7 @@ local function ensureWpIndicator(part)
 	return frame
 end
 
-local function updateWaypointIndicators()
+function updateWaypointIndicators()
 	local container = getWpContainer()
 	
 	for part,frame in pairs(wpIndicatorMap) do
@@ -2407,7 +2604,7 @@ local function updateWaypointIndicators()
 end
 
 -- Sky Mode
-local function enableSkyMode()
+function enableSkyMode()
 	if not skyBackupFolder then
 		skyBackupFolder = Instance.new("Folder")
 		skyBackupFolder.Name = "SB3_SkyBackup"
@@ -2437,7 +2634,7 @@ local function enableSkyMode()
 	end
 end
 
-local function disableSkyMode()
+function disableSkyMode()
 	if skyBackupFolder then
 		for _,o in ipairs(skyBackupFolder:GetChildren()) do 
 			o.Parent = Lighting 
@@ -2450,6 +2647,205 @@ local function disableSkyMode()
 	safeDestroy(atmosInjected)
 	atmosInjected = nil
 end
+
+ToggleDefinitions = {
+	{
+		id = "GLOBAL_ALL",
+		label = "All Toggles",
+		keyLabel = "Ctrl+Enter",
+		keyCode = Enum.KeyCode.Return,
+		getState = function()
+			return globalToggleAllState
+		end,
+		setState = function(def, enabled)
+			globalToggleAllState = enabled and true or false
+			local allApplied, failures = setAllFeatures(globalToggleAllState)
+			local message
+			if enabled and not allApplied then
+				message = string.format("%d feature%s unavailable", failures, failures == 1 and "" or "s")
+			end
+			if not enabled then
+				def._statusMsg = nil
+			end
+			return true, message
+		end
+	},
+	{
+		id = "ESP",
+		label = "ESP",
+		keyLabel = "Ctrl+E",
+		keyCode = Enum.KeyCode.E,
+		getState = function()
+			return ESP_ENABLED
+		end,
+		setState = function(_, enabled)
+			if ESP_ENABLED == enabled then
+				return true
+			end
+			ESP_ENABLED = enabled
+			for player,_ in pairs(perPlayer) do
+				setESPVisible(player, enabled)
+			end
+			return true
+		end
+	},
+	{
+		id = "BR3",
+		label = "Br3ak3r",
+		keyLabel = "Ctrl+B",
+		keyCode = Enum.KeyCode.B,
+		getState = function()
+			return CLICKBREAK_ENABLED
+		end,
+		setState = function(_, enabled)
+			CLICKBREAK_ENABLED = enabled
+			if not enabled and hoverHL then
+				hoverHL.Enabled = false
+			end
+			return true
+		end
+	},
+	{
+		id = "AUTOCLICK",
+		label = "AutoClick",
+		keyLabel = "Ctrl+K",
+		keyCode = Enum.KeyCode.K,
+		getState = function()
+			return AUTOCLICK_ENABLED
+		end,
+		setState = function(_, enabled)
+			AUTOCLICK_ENABLED = enabled
+			return true
+		end,
+		isAvailable = function()
+			if hasVIM then
+				return true
+			end
+			return false, "VirtualInput unavailable"
+		end
+	},
+	{
+		id = "SKY",
+		label = "Sky Mode",
+		keyLabel = "Ctrl+L",
+		keyCode = Enum.KeyCode.L,
+		getState = function()
+			return SKY_MODE_ENABLED
+		end,
+		setState = function(_, enabled)
+			if SKY_MODE_ENABLED == enabled then
+				return true
+			end
+			SKY_MODE_ENABLED = enabled
+			if enabled then
+				enableSkyMode()
+			else
+				disableSkyMode()
+			end
+			return true
+		end
+	},
+	{
+		id = "PREDVEC",
+		label = "PredVectors",
+		keyLabel = "Ctrl+V",
+		keyCode = Enum.KeyCode.V,
+		getState = function()
+			return PREDICTION_VECTORS_ENABLED
+		end,
+		setState = function(_, enabled)
+			PREDICTION_VECTORS_ENABLED = enabled
+			return true
+		end
+	},
+	{
+		id = "AIMBOT",
+		label = "Aimbot",
+		keyLabel = "Ctrl+J",
+		keyCode = Enum.KeyCode.J,
+		getState = function()
+			return AIMBOT_ENABLED
+		end,
+		setState = function(_, enabled)
+			AIMBOT_ENABLED = enabled
+			if not enabled then
+				clearAimbotLock()
+				destroyAimbotVisuals()
+			end
+			return true
+		end
+	},
+	{
+		id = "TARGETASSIST",
+		label = "TargetAssist",
+		keyLabel = "Ctrl+T",
+		keyCode = Enum.KeyCode.T,
+		getState = function()
+			return TARGETING_ASSIST_ENABLED
+		end,
+		setState = function(_, enabled)
+			TARGETING_ASSIST_ENABLED = enabled
+			if not enabled then
+				if targetingAssistData.crosshair then targetingAssistData.crosshair.Visible = false end
+				if targetingAssistData.leadIndicator then targetingAssistData.leadIndicator.Visible = false end
+			end
+			return true
+		end
+	},
+	{
+		id = "PROXALERT",
+		label = "ProxAlerts",
+		keyLabel = "Ctrl+A",
+		keyCode = Enum.KeyCode.A,
+		getState = function()
+			return PROXIMITY_ALERTS_ENABLED
+		end,
+		setState = function(_, enabled)
+			PROXIMITY_ALERTS_ENABLED = enabled
+			if proximityAlertManager and proximityAlertManager.reset then
+				proximityAlertManager:reset()
+			end
+			return true
+		end
+	},
+	{
+		id = "PREDZONE",
+		label = "PredZones",
+		keyLabel = "Ctrl+P",
+		keyCode = Enum.KeyCode.P,
+		getState = function()
+			return PREDICTION_ZONES_ENABLED
+		end,
+		setState = function(_, enabled)
+			PREDICTION_ZONES_ENABLED = enabled
+			return true
+		end
+	},
+	{
+		id = "PERF",
+		label = "Performance",
+		keyLabel = "Ctrl+F",
+		keyCode = Enum.KeyCode.F,
+		getState = function()
+			return PERFORMANCE_DISPLAY_ENABLED
+		end,
+		setState = function(_, enabled)
+			PERFORMANCE_DISPLAY_ENABLED = enabled
+			if not enabled and performanceLabel then
+				performanceLabel.Visible = false
+			end
+			return true
+		end
+	}
+}
+
+keyToToggle = {}
+for _,def in ipairs(ToggleDefinitions) do
+	if def.keyCode then
+		keyToToggle[def.keyCode] = def
+	end
+end
+refreshToggleUI()
 
 -- Hover highlight for Br3ak3r
 hoverHL = track(Instance.new("Highlight"))
@@ -2505,7 +2901,6 @@ bind(UserInputService.InputBegan:Connect(function(input,gp)
 				
 				-- Check waypoint limit
 				if not canAddWaypoint() then
-					-- Could add a notification here
 					return
 				end
 				
@@ -2538,53 +2933,25 @@ end))
 
 -- Toggle keys (with Ctrl)
 bind(UserInputService.InputBegan:Connect(function(input,gp)
-	if gp or not CTRL_HELD or dead then return end
-	
-	if input.KeyCode == Enum.KeyCode.Return then
-		CLICKBREAK_ENABLED = not CLICKBREAK_ENABLED
-	elseif input.KeyCode == Enum.KeyCode.K then
-		AUTOCLICK_ENABLED = not AUTOCLICK_ENABLED
-	elseif input.KeyCode == Enum.KeyCode.L then
-		SKY_MODE_ENABLED = not SKY_MODE_ENABLED
-		if SKY_MODE_ENABLED then enableSkyMode() else disableSkyMode() end
-	elseif input.KeyCode == Enum.KeyCode.E then
-		ESP_ENABLED = not ESP_ENABLED
-		for p,_ in pairs(perPlayer) do setESPVisible(p, ESP_ENABLED) end
-	elseif input.KeyCode == Enum.KeyCode.V then
-		PREDICTION_VECTORS_ENABLED = not PREDICTION_VECTORS_ENABLED
-	elseif input.KeyCode == Enum.KeyCode.J then
-		AIMBOT_ENABLED = not AIMBOT_ENABLED
-		if not AIMBOT_ENABLED then
-			clearAimbotLock()
-		end
-	elseif input.KeyCode == Enum.KeyCode.T then
-		TARGETING_ASSIST_ENABLED = not TARGETING_ASSIST_ENABLED
-	elseif input.KeyCode == Enum.KeyCode.A then
-		PROXIMITY_ALERTS_ENABLED = not PROXIMITY_ALERTS_ENABLED
-		proximityAlertManager:reset() -- Reset stacking
-	elseif input.KeyCode == Enum.KeyCode.P then
-		PREDICTION_ZONES_ENABLED = not PREDICTION_ZONES_ENABLED
-	elseif input.KeyCode == Enum.KeyCode.F then
-		PERFORMANCE_DISPLAY_ENABLED = not PERFORMANCE_DISPLAY_ENABLED
-	elseif input.KeyCode == Enum.KeyCode.Z then
+	if gp or dead or not CTRL_HELD then return end
+	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
+	local def = keyToToggle[input.KeyCode]
+	if def then
+		toggleFeature(def)
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.Z then
 		unbreakLast()
 	elseif input.KeyCode == Enum.KeyCode.Six then
 		-- Killswitch
 		dead = true
-		AUTOCLICK_ENABLED = false
-		ESP_ENABLED = false
-		SKY_MODE_ENABLED = false
-		CLICKBREAK_ENABLED = false
-		PREDICTION_VECTORS_ENABLED = false
-		TARGETING_ASSIST_ENABLED = false
+		globalToggleAllState = false
+		setAllFeatures(false)
 		HIT_CHANCE_CARD_ENABLED = false
-		AIMBOT_ENABLED = false
-		PROXIMITY_ALERTS_ENABLED = false
-		PREDICTION_ZONES_ENABLED = false
-		PERFORMANCE_DISPLAY_ENABLED = false
 		rightMouseDown = false
 
-		disableSkyMode()
 		disconnectAll()
 
 		-- Clean up all players
@@ -2644,6 +3011,9 @@ bind(UserInputService.InputBegan:Connect(function(input,gp)
 		
 		destroyAll()
 		
+		globalToggleAllState = false
+		refreshToggleUI()
+
 		-- Restore mouse behavior
 		pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
 	end
@@ -2663,7 +3033,7 @@ bind(RunService.Heartbeat:Connect(function(dt)
 	if dead then return end
 	
 	ensureGuide()
-	updateToggleDots()
+	refreshToggleUI()
 
 	-- Hover preview for Br3ak3r
 	if CTRL_HELD and CLICKBREAK_ENABLED then

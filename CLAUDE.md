@@ -78,8 +78,9 @@ This repository contains **SP3ARBR3AK3R** - a totem power system for a competiti
 - UI refresh: 0.1s
 
 **Keyboard Controls**
+- Ctrl+Enter: Toggle all features (master switch)
 - Ctrl+E: Toggle ESP
-- Ctrl+Enter: Toggle Br3ak3r
+- Ctrl+B: Toggle Br3ak3r
 - Ctrl+K: Toggle AutoClick
 - Ctrl+L: Toggle Sky Mode
 - Ctrl+Z: Undo last broken part
