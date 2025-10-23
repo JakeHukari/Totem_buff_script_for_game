@@ -145,7 +145,7 @@ The architecture is intentional, not a sign of something "wrong."
 - Must manage power toggles actively
 - Transfer all advantages on death/leave
 
-**Design Status:** ✓ Intentionally powerful with built-in counterplay
+**Design Status:** [OK] Intentionally powerful with built-in counterplay
 
 ### If Adjusting Power Level
 
@@ -193,10 +193,10 @@ The UI changed. The power level stays the same.
 **Core Principle:** The totem is meant to be the ultimate prize in your game.
 
 This means:
-- ✓ It SHOULD feel powerful
-- ✓ It SHOULD feel like a reward
-- ✓ It SHOULD incentivize competition
-- ✓ It SHOULD be what everyone wants
+- [OK] It SHOULD feel powerful
+- [OK] It SHOULD feel like a reward
+- [OK] It SHOULD incentivize competition
+- [OK] It SHOULD be what everyone wants
 
 If it doesn't feel this way, the design isn't working. Fix the problem, don't apologize for the strength.
 

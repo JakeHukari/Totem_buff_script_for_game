@@ -13,11 +13,11 @@ This repository contains **SP3ARBR3AK3R** - a totem power system for a competiti
 **Keep it simple: 1 script + 3 docs**
 
 ```
-📁 Totem_buff_script_for_game/
-├── 📜 sp3arbr3ak3r.lua          ⭐ Main script (always latest working version)
-├── 📄 README.md                 📖 User documentation
-├── 📄 CLAUDE.md                 🤖 This file - instructions for Claude Code
-└── 📄 DEVELOPER_CONTEXT.md      💭 Design philosophy
+Totem_buff_script_for_game/
+|- sp3arbr3ak3r.lua          - Main script (always latest working version)
+|- README.md                 - User documentation
+|- CLAUDE.md                 - This file - instructions for Claude Code
+|- DEVELOPER_CONTEXT.md      - Design philosophy
 ```
 
 ### File Guidelines
@@ -34,13 +34,13 @@ This repository contains **SP3ARBR3AK3R** - a totem power system for a competiti
 - **CLAUDE.md** - This file, instructions for AI assistance
 
 **When updating documentation:**
-- ✅ Update existing files
-- ❌ Never create new .md files
-- ❌ Never create version-specific docs (e.g., CHANGES_v2.md)
+- Update existing files
+- Never create new .md files
+- Never create version-specific docs (e.g., CHANGES_v2.md)
 
 **When experimenting:**
 - Feel free to create temporary test files
-- ⚠️ Always clean up after testing
+- Always clean up after testing
 - Delete experimental scripts before committing
 
 ## Code Structure
@@ -66,7 +66,8 @@ This repository contains **SP3ARBR3AK3R** - a totem power system for a competiti
 
 **UI System**
 - Guide panel showing feature status
-- Toggle dots (green = on, red = off)
+- Responsive switchboard rows (clickable on/off)
+- Master "All Toggles" switch with availability messaging
 - Waypoint scroll list
 - Edge indicators for off-screen targets
 
@@ -227,17 +228,17 @@ See `DEVELOPER_CONTEXT.md` for complete design rationale.
 ### Repository Maintenance Rules
 
 **DO:**
-- ✅ Update `sp3arbr3ak3r.lua` in place
-- ✅ Update README.md Version History section
-- ✅ Update DEVELOPER_CONTEXT.md if design changes
-- ✅ Test thoroughly before committing
-- ✅ Clean up experimental files
+- Update `sp3arbr3ak3r.lua` in place
+- Update README.md Version History section
+- Update DEVELOPER_CONTEXT.md if design changes
+- Test thoroughly before committing
+- Clean up experimental files
 
 **DON'T:**
-- ❌ Create versioned script copies (v2, v3, _old, etc.)
-- ❌ Create new documentation files
-- ❌ Leave experimental/test files in repo
-- ❌ Commit broken/untested code
+- Do not create versioned script copies (v2, v3, _old, etc.)
+- Do not create new documentation files
+- Do not leave experimental/test files in repo
+- Do not commit broken/untested code
 
 **Golden Rule:** 1 script file + 3 documentation files = clean repo
 

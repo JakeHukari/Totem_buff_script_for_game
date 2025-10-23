@@ -7,41 +7,41 @@ Versioning Guidance:
 - Add a single-line summary for the latest version directly under the header.
 
 CHANGELOG v1.13:
-• Fixed memory leaks in prediction features (attachments now properly tracked)
-• Completed targeting assist with visual crosshair and lead prediction
-• Added object pooling for GUI elements (10-15% memory reduction)
-• Enhanced configuration system for easier customization
-• Optimized prediction zones with caching
-• Added smooth color transitions for less jarring visual changes
-• Performance metrics display (FPS, player count, update time)
-• Smart waypoint limit (max 20) to prevent spam
-• Fixed attachment parent issues and nil check bugs
-• Added team detection preparation hooks
-• Improved proximity alert positioning
+- Fixed memory leaks in prediction features (attachments now properly tracked)
+- Completed targeting assist with visual crosshair and lead prediction
+- Added object pooling for GUI elements (10-15% memory reduction)
+- Enhanced configuration system for easier customization
+- Optimized prediction zones with caching
+- Added smooth color transitions for less jarring visual changes
+- Performance metrics display (FPS, player count, update time)
+- Smart waypoint limit (max 20) to prevent spam
+- Fixed attachment parent issues and nil check bugs
+- Added team detection preparation hooks
+- Improved proximity alert positioning
 
 Guide (minimal)
-All Toggles [Ctrl+Enter] – flip every feature on/off together; unavailable features stay contained.
-ESP [Ctrl+E] – player outlines + nametags. Nearest = bright red. Names scale by distance.
-Br3ak3r [Ctrl+B + Ctrl+LMB] – hide a single part; Ctrl+Z undo (max 25 recent). Hover preview while Ctrl held.
-AutoClick [Ctrl+K] – click only when cursor hits a non-local player.
-Sky Mode [Ctrl+L] – toggle bright daytime sky (client-only).
-Waypoints [Ctrl+MMB] – add/remove at cursor. Hebrew NATO names + unique colors. Persist after shutdown.
-PredVectors [Ctrl+V] – velocity prediction beams
-TargetAssist [Ctrl+T] – lead prediction crosshair
-ProxAlerts [Ctrl+A] — distance-based warnings
-PredZones [Ctrl+P] — future position spheres
-Performance [Ctrl+F] — toggle FPS/metrics display
-Killswitch [Ctrl+6] — full cleanup (UI, outlines, indicators, sky, connections). Waypoints persist.
+All Toggles [Ctrl+Enter] - flip every feature on/off together; unavailable features stay contained.
+ESP [Ctrl+E] - player outlines + nametags. Nearest = bright red. Names scale by distance.
+Br3ak3r [Ctrl+B + Ctrl+LMB] - hide a single part; Ctrl+Z undo (max 25 recent). Hover preview while Ctrl held.
+AutoClick [Ctrl+K] - click only when cursor hits a non-local player.
+Sky Mode [Ctrl+L] - toggle bright daytime sky (client-only).
+Waypoints [Ctrl+MMB] - add/remove at cursor. Hebrew NATO names + unique colors. Persist after shutdown.
+PredVectors [Ctrl+V] - velocity prediction beams
+TargetAssist [Ctrl+T] - lead prediction crosshair
+ProxAlerts [Ctrl+A] - distance-based warnings
+PredZones [Ctrl+P] - future position spheres
+Performance [Ctrl+F] - toggle FPS/metrics display
+Killswitch [Ctrl+6] - full cleanup (UI, outlines, indicators, sky, connections). Waypoints persist.
 ]]
 
 -- ============================================================
 -- PERFORMANCE OPTIMIZATIONS v1.13:
--- • Object pooling for indicators and GUI elements
--- • Enhanced attachment cleanup and tracking
--- • Prediction zone caching system
--- • Smooth color transitions with lerping
--- • Improved memory management
--- • Smart update batching
+-- - Object pooling for indicators and GUI elements
+-- - Enhanced attachment cleanup and tracking
+-- - Prediction zone caching system
+-- - Smooth color transitions with lerping
+-- - Improved memory management
+-- - Smart update batching
 -- ============================================================
 
 -- Local cache of frequently used globals for performance
@@ -675,31 +675,31 @@ function mkSwitchRow(def)
 	end
 
 	local function setAvailability(available, reasonText)
-	if available then
-		title.TextColor3 = TEXT_LIGHT
-		key.TextColor3 = TEXT_GRAY
-		switch.BackgroundTransparency = 0
-		knob.BackgroundTransparency = 0
-		button.Active = true
-		button.Selectable = true
-		if reasonText and reasonText ~= "" then
-			status.Text = reasonText
-			status.TextColor3 = STATUS_WARN_COLOR
+		if available then
+			title.TextColor3 = TEXT_LIGHT
+			key.TextColor3 = TEXT_GRAY
+			switch.BackgroundTransparency = 0
+			knob.BackgroundTransparency = 0
+			button.Active = true
+			button.Selectable = true
+			if reasonText and reasonText ~= "" then
+				status.Text = reasonText
+				status.TextColor3 = STATUS_WARN_COLOR
+			else
+				status.Text = ""
+				status.TextColor3 = TEXT_GRAY
+			end
 		else
-			status.Text = ""
-			status.TextColor3 = TEXT_GRAY
+			title.TextColor3 = TEXT_GRAY
+			key.TextColor3 = Color3.fromRGB(140,140,140)
+			switch.BackgroundTransparency = 0.35
+			knob.BackgroundTransparency = 0.35
+			button.Active = false
+			button.Selectable = false
+			status.Text = reasonText or "Unavailable"
+			status.TextColor3 = STATUS_WARN_COLOR
 		end
-	else
-		title.TextColor3 = TEXT_GRAY
-		key.TextColor3 = Color3.fromRGB(140,140,140)
-		switch.BackgroundTransparency = 0.35
-		knob.BackgroundTransparency = 0.35
-		button.Active = false
-		button.Selectable = false
-		status.Text = reasonText or "Unavailable"
-		status.TextColor3 = STATUS_WARN_COLOR
 	end
-end
 
 	return row, {
 		setState = setState,
@@ -889,7 +889,16 @@ local function applyFeatureState(def, desired)
 end
 
 function toggleFeature(def)
-	local current = def.getState and def.getState(def) or false
+	local current = false
+	if def.getState then
+		local ok, state = pcall(def.getState, def)
+		if ok then
+			current = state and true or false
+		else
+			current = false
+			def._statusMsg = "State error"
+		end
+	end
 	local target = not current
 	applyFeatureState(def, target)
 	refreshToggleUI()

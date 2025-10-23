@@ -6,7 +6,7 @@ A totem power system for competitive Roblox gameplay featuring ESP, part breakin
 
 ## Features
 
-### 🎯 ESP (Player Tracking)
+### ESP (Player Tracking)
 
 - **Outlines** - Highlight all players through walls
 
@@ -18,9 +18,9 @@ A totem power system for competitive Roblox gameplay featuring ESP, part breakin
 
   - **Far (200+ studs):** Dark blue
 
-  - **Mid-range:** Cyan → Green → Yellow
+  - **Mid-range:** Cyan -> Green -> Yellow
 
-  - **Close (30-50 studs):** Orange → Red-orange
+  - **Close (30-50 studs):** Orange -> Red-orange
 
 - **Edge Indicators** - Arrows point to off-screen players
 
@@ -44,7 +44,7 @@ A totem power system for competitive Roblox gameplay featuring ESP, part breakin
 - **Dependency Awareness** - Features with missing prerequisites (for example, a blocked `VirtualInputManager`) mark themselves as "Unavailable"
 - **Global Master Toggle** - `Ctrl+Enter` (or the "All Toggles" switch) enables/disables every feature in one action
 
-### 🎯 Aimbot Assist (Exunys Integration)
+### Aimbot Assist (Exunys Integration)
 
 - **FOV Circle Overlay** - Adjustable radius, thickness, and color for instant visual feedback
 
@@ -56,7 +56,7 @@ A totem power system for competitive Roblox gameplay featuring ESP, part breakin
 
 - **Dynamic Aim Parts** - Targets Head by default with smart torso/root fallbacks
 
-### 🌅 Sky Mode
+### Sky Mode
 
 - **Client-Side Lighting** - Toggle bright daytime sky
 
@@ -64,7 +64,7 @@ A totem power system for competitive Roblox gameplay featuring ESP, part breakin
 
 - **Custom Atmosphere** - Injected atmosphere for visibility
 
-### 📍 Waypoints
+### Waypoints
 
 - **Ctrl+MMB** - Add waypoint at cursor position
 

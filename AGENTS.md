@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Keep the root simple: `sp3arbr3ak3r.lua` is the sole source file and must remain the live build. Documentation (`README.md`, `DEVELOPER_CONTEXT.md`, `CLAUDE.md`) sits beside it—refresh these instead of adding new variants. Supporting captures such as `console log.png` should stay lightweight and be cleared once no longer referenced.
+Keep the root simple: `sp3arbr3ak3r.lua` is the sole source file and must remain the live build. Documentation (`README.md`, `DEVELOPER_CONTEXT.md`, `CLAUDE.md`) sits beside it - refresh these instead of adding new variants. Supporting captures such as `console log.png` should stay lightweight and be cleared once no longer referenced.
 
 ## Build, Test, and Development Commands
 There is no formal build step; development happens by editing `sp3arbr3ak3r.lua` directly. In Roblox Studio, insert the script under `StarterPlayerScripts` and run Play Solo (`F5`). Executors should load the same contents and run them in a live server. When profiling, collect Studio console logs or micro-profiler exports and keep them concise.
