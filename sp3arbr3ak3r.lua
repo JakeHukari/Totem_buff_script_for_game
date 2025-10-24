@@ -1,6 +1,6 @@
 --[[
-SP3ARBR3AK3R v1.13.7 ENHANCED EDITION
-Update Summary v1.13.7: Ignore dead targets for nearest tracking and visuals so ESP and assists drop instantly on kill.
+SP3ARBR3AK3R v1.13.8 ENHANCED EDITION
+Update Summary v1.13.8: Add minimize/maximize button to guide panel and full drag functionality for flexible UI positioning.
 
 Versioning Guidance:
 - Every future code change must bump the version by +0.0.1 (example: 1.13.3 -> 1.13.4).
@@ -21,7 +21,7 @@ Performance [Ctrl+F] - toggle FPS/metrics display
 Killswitch [Ctrl+6] - full cleanup (UI, outlines, indicators, sky, connections). Waypoints persist.
 ]]
 
-local VERSION_ID = "v1.13.7"
+local VERSION_ID = "v1.13.8"
 local VERSION_FLAVOR = "ENHANCED"
 local VERSION_DISPLAY = string.format("SP3ARBR3AK3R %s %s", VERSION_ID, VERSION_FLAVOR)
 
@@ -244,6 +244,8 @@ local dead = false
 
 -- Waypoints UI/State
 local guideFrame, wpScroll, wpList
+local togglesSection  -- Reference to toggle scroll frame for minimize/maximize
+local guideMinimized = false  -- Track minimize state
 local wpRowMap = {}       -- [Part] = TextLabel
 local wpIndicatorMap = {} -- [Part] = Frame
 local wpNameIndex = 0
@@ -716,6 +718,91 @@ function mkSwitchRow(def)
 	}
 end
 
+-- Helper function to toggle guide minimize state
+local function toggleGuideMinimize()
+	guideMinimized = not guideMinimized
+
+	if guideMinimized then
+		-- Hide toggle section and waypoint section
+		if togglesSection then togglesSection.Visible = false end
+		if wpScroll then wpScroll.Visible = false end
+		-- Find and hide separator and waypoint title
+		for _, child in ipairs(guideFrame:GetChildren()) do
+			if child:IsA("Frame") and child.Name ~= "TitleBar" then
+				-- Check if it's the separator (1px height frame)
+				if child.Size.Y.Offset == 1 and child.Size.X.Scale == 1 then
+					child.Visible = false
+				end
+			end
+			if child:IsA("TextLabel") and child.Text == "Waypoints:" then
+				child.Visible = false
+			end
+		end
+		-- Shrink frame to just title bar height
+		guideFrame.Size = UDim2.fromOffset(290, 34)
+	else
+		-- Show toggle section and waypoint section
+		if togglesSection then togglesSection.Visible = true end
+		if wpScroll then wpScroll.Visible = true end
+		-- Show separator and waypoint title
+		for _, child in ipairs(guideFrame:GetChildren()) do
+			if child:IsA("Frame") and child.Name ~= "TitleBar" then
+				-- Check if it's the separator (1px height frame)
+				if child.Size.Y.Offset == 1 and child.Size.X.Scale == 1 then
+					child.Visible = true
+				end
+			end
+			if child:IsA("TextLabel") and child.Text == "Waypoints:" then
+				child.Visible = true
+			end
+		end
+		-- Restore full frame size
+		guideFrame.Size = UDim2.fromOffset(290, 420)
+	end
+end
+
+-- Helper function to make a frame draggable
+local function makeDraggable(frame)
+	local dragging = false
+	local dragInput, mousePos, framePos
+
+	local function update(input)
+		local delta = input.Position - mousePos
+		frame.Position = UDim2.new(
+			framePos.X.Scale,
+			framePos.X.Offset + delta.X,
+			framePos.Y.Scale,
+			framePos.Y.Offset + delta.Y
+		)
+	end
+
+	bind(frame.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			mousePos = input.Position
+			framePos = frame.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end))
+
+	bind(frame.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			dragInput = input
+		end
+	end))
+
+	bind(UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			update(input)
+		end
+	end))
+end
+
 function ensureGuide()
 	if guideFrame and guideFrame.Parent then return end
 
@@ -728,7 +815,11 @@ function ensureGuide()
 	guideFrame.BackgroundTransparency = 0.25
 	guideFrame.BorderSizePixel = 0
 	guideFrame.ZIndex = 1000
+	guideFrame.Active = true  -- Enable input for dragging
 	guideFrame.Parent = screenGui
+
+	-- Make the frame draggable
+	makeDraggable(guideFrame)
 
 	do
 		local pad = Instance.new("UIPadding")
@@ -742,20 +833,56 @@ function ensureGuide()
 		corner.CornerRadius = UDim.new(0,10)
 		corner.Parent = guideFrame
 
+		-- Title bar container with title text and minimize button
+		local titleBar = Instance.new("Frame")
+		titleBar.Name = "TitleBar"
+		titleBar.BackgroundTransparency = 1
+		titleBar.Size = UDim2.new(1, 0, 0, 18)
+		titleBar.Position = UDim2.new(0, 0, 0, 0)
+		titleBar.ZIndex = 1001
+		titleBar.Parent = guideFrame
+
 		local title = Instance.new("TextLabel")
 		title.BackgroundTransparency = 1
-		title.Size = UDim2.fromOffset(0,18)
+		title.Size = UDim2.new(1, -25, 1, 0)  -- Leave room for button
+		title.Position = UDim2.new(0, 0, 0, 0)
 		title.Text = VERSION_DISPLAY
 		title.TextXAlignment = Enum.TextXAlignment.Left
-		title.TextYAlignment = Enum.TextYAlignment.Top
+		title.TextYAlignment = Enum.TextYAlignment.Center
 		title.Font = Enum.Font.GothamBold
 		title.TextSize = 14
 		title.TextColor3 = TEXT_LIGHTER
-		title.ZIndex = 1001
-		title.Parent = guideFrame
+		title.ZIndex = 1002
+		title.Parent = titleBar
+
+		-- Minimize/Maximize button
+		local minimizeBtn = Instance.new("TextButton")
+		minimizeBtn.Name = "MinimizeBtn"
+		minimizeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+		minimizeBtn.BackgroundTransparency = 0.3
+		minimizeBtn.BorderSizePixel = 0
+		minimizeBtn.Size = UDim2.fromOffset(20, 18)
+		minimizeBtn.Position = UDim2.new(1, -20, 0, 0)
+		minimizeBtn.Text = "−"  -- Minus symbol
+		minimizeBtn.Font = Enum.Font.GothamBold
+		minimizeBtn.TextSize = 16
+		minimizeBtn.TextColor3 = TEXT_LIGHTER
+		minimizeBtn.ZIndex = 1002
+		minimizeBtn.Parent = titleBar
+
+		local btnCorner = Instance.new("UICorner")
+		btnCorner.CornerRadius = UDim.new(0, 4)
+		btnCorner.Parent = minimizeBtn
+
+		-- Button click handler
+		minimizeBtn.MouseButton1Click:Connect(function()
+			toggleGuideMinimize()
+			-- Update button text based on state
+			minimizeBtn.Text = guideMinimized and "+" or "−"
+		end)
 
 		local toggleBlockHeight = 360
-		local togglesSection = track(Instance.new("ScrollingFrame"))
+		togglesSection = track(Instance.new("ScrollingFrame"))  -- Assign to module-level variable
 		togglesSection.BackgroundTransparency = 1
 		togglesSection.BorderSizePixel = 0
 		togglesSection.Position = UDim2.new(0,0,0,22)
