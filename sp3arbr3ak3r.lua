@@ -1,6 +1,6 @@
 --[[
-SP3ARBR3AK3R v1.13.4 ENHANCED EDITION
-Update Summary v1.13.4: Rebuilt the control deck with responsive switches, dependency-aware availability states, and a global Ctrl+Enter master toggle that flips every feature in sync.
+SP3ARBR3AK3R v1.13.5 ENHANCED EDITION
+Update Summary v1.13.5: Hardened proximity alert lifecycle to avoid nil slots during cleanup and toggles.
 
 Versioning Guidance:
 - Every future code change must bump the version by +0.0.1 (example: 1.13.3 -> 1.13.4).
@@ -249,6 +249,7 @@ local wpRowMap = {}       -- [Part] = TextLabel
 local wpIndicatorMap = {} -- [Part] = Frame
 local wpNameIndex = 0
 local indicatorFolder
+local proximityAlertManager
 
 -- Toggle system (UI + behavior)
 local ToggleDefinitions = {}
@@ -1206,7 +1207,9 @@ function destroyPerPlayer(p)
 	
 	-- Clean up proximity alert
 	if pp.alertIndex ~= nil then
-		proximityAlertManager:releaseSlot(p)
+		if proximityAlertManager and proximityAlertManager.releaseSlot then
+			proximityAlertManager:releaseSlot(p)
+		end
 		pp.alertIndex = nil
 	end
 	if pp.proximityAlert then
@@ -1401,7 +1404,7 @@ function updatePredictionVector(p, data)
 	end
 end
 
-local proximityAlertManager = {
+proximityAlertManager = {
 	indexByPlayer = {},
 	activeThisFrame = {},
 	freeSlots = {},
@@ -1501,7 +1504,9 @@ function updateProximityAlert(p, data)
 	if not PROXIMITY_ALERTS_ENABLED then
 		if data.proximityAlert then data.proximityAlert.Visible = false end
 		if data.alertIndex ~= nil then
-			proximityAlertManager:releaseSlot(p)
+			if proximityAlertManager and proximityAlertManager.releaseSlot then
+				proximityAlertManager:releaseSlot(p)
+			end
 			data.alertIndex = nil
 		end
 		return
@@ -1512,7 +1517,9 @@ function updateProximityAlert(p, data)
 	if not myRoot or not data.root then
 		if data.proximityAlert then data.proximityAlert.Visible = false end
 		if data.alertIndex ~= nil then
-			proximityAlertManager:releaseSlot(p)
+			if proximityAlertManager and proximityAlertManager.releaseSlot then
+				proximityAlertManager:releaseSlot(p)
+			end
 			data.alertIndex = nil
 		end
 		return
@@ -1535,7 +1542,9 @@ function updateProximityAlert(p, data)
 			data.proximityAlert.Visible = false
 		end
 		if data.alertIndex ~= nil then
-			proximityAlertManager:releaseSlot(p)
+			if proximityAlertManager and proximityAlertManager.releaseSlot then
+				proximityAlertManager:releaseSlot(p)
+			end
 			data.alertIndex = nil
 		end
 		return
@@ -1626,7 +1635,9 @@ function applyIgnoredPlayerState(p, data)
 		data.proximityAlert.Visible = false
 	end
 	if data.alertIndex ~= nil then
-		proximityAlertManager:releaseSlot(p)
+		if proximityAlertManager and proximityAlertManager.releaseSlot then
+			proximityAlertManager:releaseSlot(p)
+		end
 		data.alertIndex = nil
 	end
 	if data.predictionVector then
