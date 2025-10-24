@@ -12,7 +12,7 @@ ESP [Ctrl+E] - player outlines + nametags. Nearest = bright red. Names scale by 
 Br3ak3r [Ctrl+B + Ctrl+LMB] - hide a single part; Ctrl+Z undo (max 25 recent). Hover preview while Ctrl held.
 AutoClick [Ctrl+K] - click only when cursor hits a non-local player.
 Sky Mode [Ctrl+L] - toggle bright daytime sky (client-only).
-Waypoints [Ctrl+MMB] - add/remove at cursor. Hebrew NATO names + unique colors. Persist after shutdown.
+Waypoints [Ctrl+MMB] - add/remove at cursor. NATO names + unique colors. Persist after shutdown.
 PredVectors [Ctrl+V] - velocity prediction beams
 TargetAssist [Ctrl+T] - lead prediction crosshair
 ProxAlerts [Ctrl+A] - distance-based warnings
@@ -160,7 +160,7 @@ local EDGE_MARGIN = 24
 local INDICATOR_SIZE = Vector2.new(110, 22)
 local INDICATOR_SIZE_HALF = Vector2.new(55, 11)
 
-local HEBREW_NATO = {
+local NATO = {
 	"אלפא","ברבו","צ'רלי","דלתא","אקו","פוקסטרוט","גולף","הוטל","אינדיה","ז'ולייט",
 	"קילו","לימה","מייק","נובמבר","אוסקר","פאפא","קוויבק","רומיאו","סיירה","טנגו",
 	"יוניפורם","ויקטור","וויסקי","אקס-ריי","ינקי","זולו"
@@ -2467,8 +2467,8 @@ function getWpContainer()
 end
 
 function nextWpNameAndColor() 
-	wpNameIndex = (wpNameIndex % #HEBREW_NATO) + 1
-	return HEBREW_NATO[wpNameIndex], NATO_COLORS[wpNameIndex] 
+	wpNameIndex = (wpNameIndex % #NATO) + 1
+	return NATO[wpNameIndex], NATO_COLORS[wpNameIndex] 
 end
 
 function canAddWaypoint()
