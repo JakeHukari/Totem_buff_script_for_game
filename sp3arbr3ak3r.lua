@@ -2785,6 +2785,26 @@ ToggleDefinitions = {
 		end
 	},
 	{
+		id = "HITCHANCE",
+		label = "HitChance Card",
+		keyLabel = "Ctrl+H",
+		keyCode = Enum.KeyCode.H,
+		getState = function()
+			return HIT_CHANCE_CARD_ENABLED
+		end,
+		setState = function(_, enabled)
+			local desired = enabled and true or false
+			if HIT_CHANCE_CARD_ENABLED == desired then
+				return true
+			end
+			HIT_CHANCE_CARD_ENABLED = desired
+			if not desired then
+				hideHitChanceCard()
+			end
+			return true
+		end
+	},
+	{
 		id = "TARGETASSIST",
 		label = "TargetAssist",
 		keyLabel = "Ctrl+T",
