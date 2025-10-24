@@ -1120,6 +1120,7 @@ end
 -- Br3ak3r
 function markBroken(part)
 	if not part or not part:IsA("BasePart") then return end
+	if brokenSet[part] then return end
 	brokenSet[part] = true
 	brokenCacheDirty = true
 	insert(undoStack, {part=part, cc=part.CanCollide, ltm=part.LocalTransparencyModifier, t=part.Transparency})
