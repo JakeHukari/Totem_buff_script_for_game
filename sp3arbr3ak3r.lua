@@ -1,25 +1,13 @@
 --[[
-SP3ARBR3AK3R v1.13.6 ENHANCED EDITION
-Update Summary v1.13.6: Reset targeting assist anchors when toggled off so HitChance follows the current target.
+SP3ARBR3AK3R .6 ENHANCED EDITION
+Update Summary .6: Reset targeting assist anchors when toggled off so HitChance follows the current target.
 
 Versioning Guidance:
 - Every future code change must bump the version by +0.0.1 (example: 1.13.3 -> 1.13.4).
+- Do Not Forget to update title.Text with new version number
 - Add a single-line summary for the latest version directly under the header.
 
-CHANGELOG v1.13:
-- Fixed memory leaks in prediction features (attachments now properly tracked)
-- Completed targeting assist with visual crosshair and lead prediction
-- Added object pooling for GUI elements (10-15% memory reduction)
-- Enhanced configuration system for easier customization
-- Optimized prediction zones with caching
-- Added smooth color transitions for less jarring visual changes
-- Performance metrics display (FPS, player count, update time)
-- Smart waypoint limit (max 20) to prevent spam
-- Fixed attachment parent issues and nil check bugs
-- Added team detection preparation hooks
-- Improved proximity alert positioning
-
-Guide (minimal)
+Guide 
 All Toggles [Ctrl+Enter] - flip every feature on/off together; unavailable features stay contained.
 ESP [Ctrl+E] - player outlines + nametags. Nearest = bright red. Names scale by distance.
 Br3ak3r [Ctrl+B + Ctrl+LMB] - hide a single part; Ctrl+Z undo (max 25 recent). Hover preview while Ctrl held.
@@ -33,16 +21,6 @@ PredZones [Ctrl+P] - future position spheres
 Performance [Ctrl+F] - toggle FPS/metrics display
 Killswitch [Ctrl+6] - full cleanup (UI, outlines, indicators, sky, connections). Waypoints persist.
 ]]
-
--- ============================================================
--- PERFORMANCE OPTIMIZATIONS v1.13:
--- - Object pooling for indicators and GUI elements
--- - Enhanced attachment cleanup and tracking
--- - Prediction zone caching system
--- - Smooth color transitions with lerping
--- - Improved memory management
--- - Smart update batching
--- ============================================================
 
 -- Local cache of frequently used globals for performance
 local abs, floor, max, min, clamp = math.abs, math.floor, math.max, math.min, math.clamp
@@ -61,8 +39,6 @@ local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local hasVIM, VirtualInputManager = pcall(function() return game:GetService("VirtualInputManager") end)
 
--- ============================================================
--- ENHANCED CONFIGURATION SYSTEM v1.13
 -- ============================================================
 local CONFIG = {
 	Features = {
@@ -183,7 +159,7 @@ local EDGE_MARGIN = 24
 local INDICATOR_SIZE = Vector2.new(110, 22)
 local INDICATOR_SIZE_HALF = Vector2.new(55, 11)
 
--- Waypoint Hebrew NATO names and colors
+-- Waypoint names and colors
 local HEBREW_NATO = {
 	"אלפא","ברבו","צ'רלי","דלתא","אקו","פוקסטרוט","גולף","הוטל","אינדיה","ז'ולייט",
 	"קילו","לימה","מייק","נובמבר","אוסקר","פאפא","קוויבק","רומיאו","סיירה","טנגו",
@@ -265,7 +241,7 @@ local hoverHL
 local skyBackupFolder, skyInjected, atmosInjected
 
 -- ============================================================
--- OBJECT POOLING SYSTEM v1.13
+-- OBJECT POOLING SYSTEM 
 -- ============================================================
 local ObjectPools = {
 	indicators = {pool = {}, size = 0},
@@ -317,7 +293,7 @@ function returnToPool(poolName, obj)
 end
 
 -- ============================================================
--- PREDICTION ZONE CACHING SYSTEM v1.13
+-- PREDICTION ZONE CACHING SYSTEM 
 -- ============================================================
 local predictionZoneCache = {}
 local predictionZoneCacheSize = 0
@@ -355,7 +331,7 @@ function returnPredictionZone(zone)
 end
 
 -- ============================================================
--- COLOR SMOOTHING SYSTEM v1.13
+-- COLOR SMOOTHING SYSTEM 
 -- ============================================================
 local colorSmoothingData = {}
 
@@ -381,7 +357,7 @@ function getSmoothColor(p, targetColor, dt)
 end
 
 -- ============================================================
--- PERFORMANCE METRICS v1.13
+-- PERFORMANCE METRICS 
 -- ============================================================
 local performanceData = {
 	fps = 0,
@@ -739,7 +715,7 @@ function ensureGuide()
 		local title = Instance.new("TextLabel")
 		title.BackgroundTransparency = 1
 		title.Size = UDim2.fromOffset(0,18)
-		title.Text = "SP3ARBR3AK3R v1.13.6 ENHANCED"
+		title.Text = "SP3ARBR3AK3R .6 ENHANCED"
 		title.TextXAlignment = Enum.TextXAlignment.Left
 		title.TextYAlignment = Enum.TextYAlignment.Top
 		title.Font = Enum.Font.GothamBold
@@ -1189,7 +1165,7 @@ local runVisualUpdate = makeIntervalRunner(CONFIG.Performance.updateRates.visual
 local runCleanupSweep = makeIntervalRunner(CONFIG.Performance.updateRates.cleanup)
 local runColorSmooth = makeIntervalRunner(CONFIG.Performance.updateRates.colorSmooth)
 
--- ESP (ENHANCED v1.13 - Fixed memory leaks)
+-- ESP (ENHANCED  - Fixed memory leaks)
 function destroyPerPlayer(p)
 	local pp = perPlayer[p]
 	if not pp then return end
@@ -1811,7 +1787,7 @@ bind(Players.PlayerRemoving:Connect(function(p)
 end))
 
 -- ============================================================
--- TARGETING ASSIST v1.13 (COMPLETED IMPLEMENTATION)
+-- TARGETING ASSIST  (COMPLETED IMPLEMENTATION)
 -- ============================================================
 local targetingAssistData = {
 	targetPlayer = nil,
