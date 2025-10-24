@@ -461,7 +461,14 @@ end
 
 -- Color gradient function for distance-based nametag colors
 function getDistanceColor(distance)
-	local t = customClamp((distance - GRADIENT_MIN_DIST) / (GRADIENT_MAX_DIST - GRADIENT_MIN_DIST), 0, 1)
+	local gradientRange = GRADIENT_MAX_DIST - GRADIENT_MIN_DIST
+	local t
+
+	if gradientRange > 0 then
+		t = customClamp((distance - GRADIENT_MIN_DIST) / gradientRange, 0, 1)
+	else
+		t = 0
+	end
 	
 	if t > 0.83 then  -- Very far: dark blue to blue
 		local localT = (t - 0.83) / 0.17
