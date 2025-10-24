@@ -2446,6 +2446,17 @@ function updateTargetingAssist(targetPlayer)
 					targetingAssistData.crosshair.Visible = false
 					targetingAssistData.leadIndicator.Visible = false
 				end
+			else
+				targetingAssistData.targetPlayer = nil
+				targetingAssistData.targetPos = nil
+				targetingAssistData.screenPos = nil
+				if targetingAssistData.crosshair then
+					targetingAssistData.crosshair.Visible = false
+				end
+				if targetingAssistData.leadIndicator then
+					targetingAssistData.leadIndicator.Visible = false
+				end
+				return
 			end
 		end
 	else
