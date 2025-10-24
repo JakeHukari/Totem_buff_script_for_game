@@ -254,6 +254,7 @@ local proximityAlertManager
 -- Toggle system (UI + behavior)
 local ToggleDefinitions = {}
 local toggleWidgets = {}     -- [id] = {setState=function, setAvailability=function, button=TextButton}
+local toggleUIDirty = true
 local keyToToggle = {}       -- [Enum.KeyCode] = toggleDef
 local globalToggleAllState = false -- false => next Ctrl+Enter enable all, true => next disables
 
@@ -862,6 +863,7 @@ function refreshToggleUI()
 			widget.setState(available and current or false)
 		end
 	end
+	toggleUIDirty = false
 end
 
 local function applyFeatureState(def, desired)
@@ -873,6 +875,7 @@ local function applyFeatureState(def, desired)
 			pcall(def.setState, def, false)
 		end
 		def._statusMsg = reason or "Unavailable"
+		toggleUIDirty = true
 		return not desired
 	end
 
@@ -897,6 +900,7 @@ local function applyFeatureState(def, desired)
 		def._statusMsg = statusMsg or "Unavailable"
 	end
 
+	toggleUIDirty = true
 	return success or not desired
 end
 
@@ -913,7 +917,7 @@ function toggleFeature(def)
 	end
 	local target = not current
 	applyFeatureState(def, target)
-	refreshToggleUI()
+	toggleUIDirty = true
 end
 
 function setAllFeatures(enabled)
@@ -929,7 +933,7 @@ function setAllFeatures(enabled)
 			end
 		end
 	end
-	refreshToggleUI()
+	toggleUIDirty = true
 	return failures == 0, failures
 end
 
@@ -3059,11 +3063,11 @@ bind(UserInputService.InputBegan:Connect(function(input,gp)
 		clearAimbotLock()
 
 		destroyHitChanceCard()
-		
+
 		destroyAll()
-		
+
 		globalToggleAllState = false
-		refreshToggleUI()
+		toggleUIDirty = true
 
 		-- Restore mouse behavior
 		pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
@@ -3082,9 +3086,11 @@ end
 
 bind(RunService.Heartbeat:Connect(function(dt)
 	if dead then return end
-	
+
 	ensureGuide()
-	refreshToggleUI()
+	if toggleUIDirty then
+		refreshToggleUI()
+	end
 
 	-- Hover preview for Br3ak3r
 	if CTRL_HELD and CLICKBREAK_ENABLED then
