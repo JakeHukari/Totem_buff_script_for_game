@@ -3077,8 +3077,9 @@ bind(UserInputService.InputBegan:Connect(function(input,gp)
 		for _,f in pairs(wpIndicatorMap) do safeDestroy(f) end
 		wpIndicatorMap = {}
 
-		for i = #indicatorFolder:GetChildren(),1,-1 do
-			safeDestroy(indicatorFolder:GetChildren()[i])
+		local children = indicatorFolder:GetChildren()
+		for i = #children,1,-1 do
+			safeDestroy(children[i])
 		end
 		safeDestroy(indicatorFolder)
 
