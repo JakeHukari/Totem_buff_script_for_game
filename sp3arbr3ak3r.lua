@@ -6,19 +6,6 @@ Versioning Guidance:
 - Every future code change must bump the version by +0.0.1 (example: 1.13.3 -> 1.13.4).
 - Add a single-line summary for the latest version directly under the header.
 
-CHANGELOG v1.13:
-- Fixed memory leaks in prediction features (attachments now properly tracked)
-- Completed targeting assist with visual crosshair and lead prediction
-- Added object pooling for GUI elements (10-15% memory reduction)
-- Enhanced configuration system for easier customization
-- Optimized prediction zones with caching
-- Added smooth color transitions for less jarring visual changes
-- Performance metrics display (FPS, player count, update time)
-- Smart waypoint limit (max 20) to prevent spam
-- Fixed attachment parent issues and nil check bugs
-- Added team detection preparation hooks
-- Improved proximity alert positioning
-
 Guide (minimal)
 All Toggles [Ctrl+Enter] - flip every feature on/off together; unavailable features stay contained.
 ESP [Ctrl+E] - player outlines + nametags. Nearest = bright red. Names scale by distance.
@@ -33,16 +20,6 @@ PredZones [Ctrl+P] - future position spheres
 Performance [Ctrl+F] - toggle FPS/metrics display
 Killswitch [Ctrl+6] - full cleanup (UI, outlines, indicators, sky, connections). Waypoints persist.
 ]]
-
--- ============================================================
--- PERFORMANCE OPTIMIZATIONS v1.13:
--- - Object pooling for indicators and GUI elements
--- - Enhanced attachment cleanup and tracking
--- - Prediction zone caching system
--- - Smooth color transitions with lerping
--- - Improved memory management
--- - Smart update batching
--- ============================================================
 
 -- Local cache of frequently used globals for performance
 local abs, floor, max, min, clamp = math.abs, math.floor, math.max, math.min, math.clamp
@@ -183,7 +160,6 @@ local EDGE_MARGIN = 24
 local INDICATOR_SIZE = Vector2.new(110, 22)
 local INDICATOR_SIZE_HALF = Vector2.new(55, 11)
 
--- Waypoint Hebrew NATO names and colors
 local HEBREW_NATO = {
 	"אלפא","ברבו","צ'רלי","דלתא","אקו","פוקסטרוט","גולף","הוטל","אינדיה","ז'ולייט",
 	"קילו","לימה","מייק","נובמבר","אוסקר","פאפא","קוויבק","רומיאו","סיירה","טנגו",
