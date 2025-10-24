@@ -1,6 +1,6 @@
 --[[
-SP3ARBR3AK3R v1.13.5 ENHANCED EDITION
-Update Summary v1.13.5: Hardened proximity alert lifecycle to avoid nil slots during cleanup and toggles.
+SP3ARBR3AK3R v1.13.6 ENHANCED EDITION
+Update Summary v1.13.6: Reset targeting assist anchors when toggled off so HitChance follows the current target.
 
 Versioning Guidance:
 - Every future code change must bump the version by +0.0.1 (example: 1.13.3 -> 1.13.4).
@@ -2416,12 +2416,16 @@ end
 
 function updateTargetingAssist(targetPlayer)
 	if not TARGETING_ASSIST_ENABLED then
+		targetingAssistData.targetPlayer = nil
+		targetingAssistData.targetPos = nil
+		targetingAssistData.screenPos = nil
 		if targetingAssistData.crosshair then
 			targetingAssistData.crosshair.Visible = false
 		end
 		if targetingAssistData.leadIndicator then
 			targetingAssistData.leadIndicator.Visible = false
 		end
+		hideHitChanceCard()
 		return
 	end
 	
