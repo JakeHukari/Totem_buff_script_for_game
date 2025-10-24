@@ -1848,9 +1848,13 @@ function getTargetLeadPosition(targetRoot, bulletSpeed)
 	local relative = targetRoot.Position - myRoot.Position
 	local distance = relative.Magnitude
 
-	bulletSpeed = bulletSpeed or CONFIG.Features.TargetingAssist.bulletSpeed
-	if bulletSpeed <= 0 then
-		bulletSpeed = CONFIG.Features.TargetingAssist.bulletSpeed
+	local configuredSpeed = CONFIG.Features.TargetingAssist.bulletSpeed
+	if type(bulletSpeed) ~= "number" or bulletSpeed <= 0 then
+		if type(configuredSpeed) == "number" and configuredSpeed > 0 then
+			bulletSpeed = configuredSpeed
+		else
+			bulletSpeed = 100
+		end
 	end
 
 	local travelTime = distance / bulletSpeed
