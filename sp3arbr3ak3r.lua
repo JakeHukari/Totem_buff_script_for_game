@@ -739,7 +739,7 @@ function ensureGuide()
 		local title = Instance.new("TextLabel")
 		title.BackgroundTransparency = 1
 		title.Size = UDim2.fromOffset(0,18)
-		title.Text = "SP3ARBR3AK3R v1.13.4 ENHANCED"
+		title.Text = "SP3ARBR3AK3R v1.13.6 ENHANCED"
 		title.TextXAlignment = Enum.TextXAlignment.Left
 		title.TextYAlignment = Enum.TextYAlignment.Top
 		title.Font = Enum.Font.GothamBold
