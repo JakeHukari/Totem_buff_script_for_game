@@ -1,6 +1,6 @@
 --[[
-SP3ARBR3AK3R v1.13.6 ENHANCED EDITION
-Update Summary v1.13.6: Reset targeting assist anchors when toggled off so HitChance follows the current target.
+SP3ARBR3AK3R v1.13.7 ENHANCED EDITION
+Update Summary v1.13.7: Clamp AutoClick CPS so heartbeat scheduling stays stable even with bad config input.
 
 Versioning Guidance:
 - Every future code change must bump the version by +0.0.1 (example: 1.13.3 -> 1.13.4).
@@ -107,6 +107,13 @@ local CONFIG = {
 local ESP_ENABLED = CONFIG.Features.ESP.enabled
 local CLICKBREAK_ENABLED = CONFIG.Features.Br3ak3r.enabled
 local AUTOCLICK_ENABLED = CONFIG.Features.AutoClick.enabled
+local rawAutoClickCps = tonumber(CONFIG.Features.AutoClick.cps) or 0
+local AUTOCLICK_CPS = max(rawAutoClickCps, 1)
+local autoClickClampMessage
+if AUTOCLICK_CPS ~= rawAutoClickCps then
+	autoClickClampMessage = string.format("CPS clamped to %g (was %g)", AUTOCLICK_CPS, rawAutoClickCps)
+end
+CONFIG.Features.AutoClick.cps = AUTOCLICK_CPS
 local SKY_MODE_ENABLED = CONFIG.Features.SkyMode.enabled
 local PREDICTION_VECTORS_ENABLED = CONFIG.Features.PredictionVectors.enabled
 local TARGETING_ASSIST_ENABLED = CONFIG.Features.TargetingAssist.enabled
@@ -117,7 +124,6 @@ local PREDICTION_ZONES_ENABLED = CONFIG.Features.PredictionZones.enabled
 local PERFORMANCE_DISPLAY_ENABLED = CONFIG.Features.PerformanceDisplay.enabled
 local IGNORE_TEAMMATES = CONFIG.Tactical.ignoreTeammates
 
-local AUTOCLICK_CPS = CONFIG.Features.AutoClick.cps
 local AUTOCLICK_INTERVAL = 1 / AUTOCLICK_CPS
 local RAYCAST_MAX_DISTANCE = 3000
 local UNDO_LIMIT = CONFIG.Features.Br3ak3r.undoLimit
@@ -2725,12 +2731,13 @@ ToggleDefinitions = {
 		label = "AutoClick",
 		keyLabel = "Ctrl+K",
 		keyCode = Enum.KeyCode.K,
+		_statusMsg = autoClickClampMessage,
 		getState = function()
 			return AUTOCLICK_ENABLED
 		end,
 		setState = function(_, enabled)
 			AUTOCLICK_ENABLED = enabled
-			return true
+			return true, autoClickClampMessage
 		end,
 		isAvailable = function()
 			if hasVIM then
