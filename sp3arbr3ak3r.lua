@@ -21,6 +21,10 @@ Performance [Ctrl+F] - toggle FPS/metrics display
 Killswitch [Ctrl+6] - full cleanup (UI, outlines, indicators, sky, connections). Waypoints persist.
 ]]
 
+local VERSION_ID = "v1.13.7"
+local VERSION_FLAVOR = "ENHANCED"
+local VERSION_DISPLAY = string.format("SP3ARBR3AK3R %s %s", VERSION_ID, VERSION_FLAVOR)
+
 -- Local cache of frequently used globals for performance
 local abs, floor, max, min, clamp = math.abs, math.floor, math.max, math.min, math.clamp
 local deg, atan2, sqrt, acos = math.deg, math.atan2, math.sqrt, math.acos
@@ -734,7 +738,7 @@ function ensureGuide()
 		local title = Instance.new("TextLabel")
 		title.BackgroundTransparency = 1
 		title.Size = UDim2.fromOffset(0,18)
-		title.Text = "SP3ARBR3AK3R v1.13.6 ENHANCED"
+		title.Text = VERSION_DISPLAY
 		title.TextXAlignment = Enum.TextXAlignment.Left
 		title.TextYAlignment = Enum.TextYAlignment.Top
 		title.Font = Enum.Font.GothamBold
