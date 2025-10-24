@@ -1,6 +1,6 @@
 --[[
-SP3ARBR3AK3R v1.13.6 ENHANCED EDITION
-Update Summary v1.13.6: Reset targeting assist anchors when toggled off so HitChance follows the current target.
+SP3ARBR3AK3R v1.13.7 ENHANCED EDITION
+Update Summary v1.13.7: Sanitize targeting assist bullet speed defaults to avoid zero-division in lead prediction.
 
 Versioning Guidance:
 - Every future code change must bump the version by +0.0.1 (example: 1.13.3 -> 1.13.4).
@@ -1818,9 +1818,13 @@ function getTargetLeadPosition(targetRoot, bulletSpeed)
 	local relative = targetRoot.Position - myRoot.Position
 	local distance = relative.Magnitude
 
-	bulletSpeed = bulletSpeed or CONFIG.Features.TargetingAssist.bulletSpeed
-	if bulletSpeed <= 0 then
-		bulletSpeed = CONFIG.Features.TargetingAssist.bulletSpeed
+	local configuredSpeed = CONFIG.Features.TargetingAssist.bulletSpeed
+	if type(bulletSpeed) ~= "number" or bulletSpeed <= 0 then
+		if type(configuredSpeed) == "number" and configuredSpeed > 0 then
+			bulletSpeed = configuredSpeed
+		else
+			bulletSpeed = 100
+		end
 	end
 
 	local travelTime = distance / bulletSpeed
