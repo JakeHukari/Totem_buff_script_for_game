@@ -747,10 +747,15 @@ function ensureGuide()
 		title.Parent = guideFrame
 
 		local toggleBlockHeight = 360
-		local togglesSection = track(Instance.new("Frame"))
+		local togglesSection = track(Instance.new("ScrollingFrame"))
 		togglesSection.BackgroundTransparency = 1
+		togglesSection.BorderSizePixel = 0
 		togglesSection.Position = UDim2.new(0,0,0,22)
 		togglesSection.Size = UDim2.new(1,0,0,toggleBlockHeight)
+		togglesSection.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		togglesSection.CanvasSize = UDim2.new(0,0,0,0)
+		togglesSection.ScrollBarThickness = 4
+		togglesSection.ScrollingDirection = Enum.ScrollingDirection.Y
 		togglesSection.Parent = guideFrame
 
 		local list = track(Instance.new("UIListLayout"))
@@ -758,6 +763,12 @@ function ensureGuide()
 		list.SortOrder=Enum.SortOrder.LayoutOrder
 		list.Padding=UDim.new(0,4)
 		list.Parent=togglesSection
+
+		local function syncToggleCanvas()
+			togglesSection.CanvasSize = UDim2.new(0,0,0,list.AbsoluteContentSize.Y)
+		end
+		syncToggleCanvas()
+		bind(list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(syncToggleCanvas))
 
 		for _,def in ipairs(ToggleDefinitions) do
 			local row, widget = mkSwitchRow(def)
