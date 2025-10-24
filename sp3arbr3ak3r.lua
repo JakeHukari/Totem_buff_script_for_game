@@ -1,3 +1,4 @@
+--[[
 SP3ARBR3AK3R v1.13.7 ENHANCED EDITION
 Update Summary v1.13.7: Ignore dead targets for nearest tracking and visuals so ESP and assists drop instantly on kill.
 
