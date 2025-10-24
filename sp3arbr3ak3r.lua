@@ -1,6 +1,5 @@
---[[
-SP3ARBR3AK3R v1.13.6 ENHANCED EDITION
-Update Summary v1.13.6: Reset targeting assist anchors when toggled off so HitChance follows the current target.
+SP3ARBR3AK3R v1.13.7 ENHANCED EDITION
+Update Summary v1.13.7: Ignore dead targets for nearest tracking and visuals so ESP and assists drop instantly on kill.
 
 Versioning Guidance:
 - Every future code change must bump the version by +0.0.1 (example: 1.13.3 -> 1.13.4).
@@ -207,6 +206,19 @@ function shouldIgnorePlayer(p)
 		return true
 	end
 	return false
+end
+
+local HUMANOID_DEAD_STATE = Enum.HumanoidStateType.Dead
+
+local function humanoidIsAlive(humanoid)
+	if not humanoid or humanoid.Parent == nil then return false end
+	local health = humanoid.Health
+	if not health or health <= 0 then return false end
+	local state = humanoid:GetState()
+	if state == HUMANOID_DEAD_STATE then
+		return false
+	end
+	return true
 end
 
 local created, binds = {}, {}
@@ -1271,6 +1283,7 @@ function billboardFor(p, character)
 	entry.hum = hum
 	entry.tool = getEquippedTool(character)
 	entry.cache = entry.cache or {}
+	entry.isAlive = false
 	perPlayer[p] = entry
 end
 
@@ -1300,7 +1313,7 @@ function updateNearestPlayer()
 	end
 	local myRootPos = myRoot.Position
 	local best, bestDist = nil, nil
-	for p,data in pairs(perPlayer) do
+	for p, data in pairs(perPlayer) do
 		if not shouldIgnorePlayer(p) then
 			local character = p.Character or data.character
 			local root = data.root
@@ -1309,11 +1322,16 @@ function updateNearestPlayer()
 					root = character:FindFirstChild("HumanoidRootPart")
 					data.root = root
 				end
-			end
-			if root and root:IsDescendantOf(Workspace) then
-				local d = (root.Position - myRootPos).Magnitude
-				if not bestDist or d < bestDist then
-					best, bestDist = p, d
+				local hum = data.hum
+				if not hum or hum.Parent ~= character then
+					hum = character:FindFirstChildOfClass("Humanoid")
+					data.hum = hum
+				end
+				if root and root:IsDescendantOf(Workspace) and humanoidIsAlive(hum) then
+					local d = (root.Position - myRootPos).Magnitude
+					if not bestDist or d < bestDist then
+						best, bestDist = p, d
+					end
 				end
 			end
 		end
@@ -1351,7 +1369,7 @@ function ensurePredictionVector(p, root)
 end
 
 function updatePredictionVector(p, data)
-	if not PREDICTION_VECTORS_ENABLED or not data.root then
+	if not PREDICTION_VECTORS_ENABLED or not data.root or not data.isAlive then
 		if data.predictionVector then data.predictionVector.Enabled = false end
 		return
 	end
@@ -1481,7 +1499,7 @@ function proximityAlertManager:reset()
 end
 
 function updateProximityAlert(p, data)
-	if not PROXIMITY_ALERTS_ENABLED then
+	if not PROXIMITY_ALERTS_ENABLED or not data.isAlive then
 		if data.proximityAlert then data.proximityAlert.Visible = false end
 		if data.alertIndex ~= nil then
 			if proximityAlertManager and proximityAlertManager.releaseSlot then
@@ -1574,7 +1592,7 @@ end
 
 -- Prediction Zones (ENHANCED with caching)
 function updatePredictionZone(p, data)
-	if not PREDICTION_ZONES_ENABLED or not data.root then
+	if not PREDICTION_ZONES_ENABLED or not data.root or not data.isAlive then
 		setPredictionZoneVisible(data.predictionZone, false)
 		return
 	end
@@ -1604,6 +1622,7 @@ end
 
 function applyIgnoredPlayerState(p, data)
 	if not data then return end
+	data.isAlive = false
 	setESPVisible(p, false)
 	local cache = data.cache
 	if cache then
@@ -1637,33 +1656,38 @@ function updateSinglePlayerVisual(p, data, dt)
 	local character = p.Character or data.character
 	data.character = character
 	local root = data.root
-	
+
 	if character then
 		if not root or root.Parent ~= character then
 			root = character:FindFirstChild("HumanoidRootPart")
 			data.root = root
 		end
 	else
-		root = nil
-	end
-	
-	if not character or not root then
-		if data.bill and cache.billEnabled then
-			data.bill.Enabled = false
-			cache.billEnabled = false
-		end
-		if cache.indicatorVisible then
-			hideIndicator(data.indicator)
-			cache.indicatorVisible = false
-		end
+		data.root = nil
+		data.isAlive = false
+		applyIgnoredPlayerState(p, data)
 		return
 	end
-	
+
+	if not root then
+		data.isAlive = false
+		applyIgnoredPlayerState(p, data)
+		return
+	end
+
 	local hum = data.hum
 	if not hum or hum.Parent ~= character then
 		hum = character:FindFirstChildOfClass("Humanoid")
 		data.hum = hum
 	end
+
+	if not humanoidIsAlive(hum) then
+		data.isAlive = false
+		applyIgnoredPlayerState(p, data)
+		return
+	end
+
+	data.isAlive = true
 	
 	local onScreen, _, edge, angle = projectToEdge(root.Position)
 	if onScreen == nil then return end
@@ -2066,8 +2090,9 @@ function updateHitChanceCard(dt)
 
 	if HIT_CHANCE_CARD_ENABLED and not dead and rightMouseDown then
 		local target = nearestPlayerRef
-		if target and not shouldIgnorePlayer(target) then
-			local targetData = perPlayer[target]
+		local targetData = target and perPlayer[target]
+		local targetAlive = targetData and humanoidIsAlive(targetData.hum)
+		if target and targetData and targetData.isAlive and targetAlive and not shouldIgnorePlayer(target) then
 			local targetChar = target.Character or (targetData and targetData.character)
 			local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart") or (targetData and targetData.root)
 			if targetData then
@@ -2410,9 +2435,11 @@ function updateTargetingAssist(targetPlayer)
 	end
 	
 	local activeTarget = targetPlayer
-	if activeTarget and activeTarget.Character then
-		local targetRoot = activeTarget.Character:FindFirstChild("HumanoidRootPart")
-		if targetRoot and camera then
+	local targetData = activeTarget and perPlayer[activeTarget]
+	if activeTarget and targetData and targetData.isAlive and activeTarget.Character then
+		local targetRoot = activeTarget.Character:FindFirstChild("HumanoidRootPart") or targetData.root
+		if targetRoot and camera and humanoidIsAlive(targetData.hum) then
+			targetData.root = targetRoot
 			-- Calculate lead position
 			local leadPos = getTargetLeadPosition(targetRoot, CONFIG.Features.TargetingAssist.bulletSpeed)
 			if leadPos then
