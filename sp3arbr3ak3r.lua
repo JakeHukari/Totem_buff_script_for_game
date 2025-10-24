@@ -1,6 +1,6 @@
 --[[
-SP3ARBR3AK3R .6 ENHANCED EDITION
-Update Summary .6: Reset targeting assist anchors when toggled off so HitChance follows the current target.
+SP3ARBR3AK3R v1.13.6 ENHANCED EDITION
+Update Summary v1.13.6: Reset targeting assist anchors when toggled off so HitChance follows the current target.
 
 Versioning Guidance:
 - Every future code change must bump the version by +0.0.1 (example: 1.13.3 -> 1.13.4).
@@ -55,7 +55,7 @@ local CONFIG = {
 			smoothing = 0.25,
 			fovRadius = 220,
 			fovVisible = true,
-			fovThickness = 1.6,
+			fovThickness = 1v1.13.6,
 			fovTransparency = 0.2,
 			fovColor = Color3.fromRGB(255, 90, 90),
 			prediction = true,
@@ -153,7 +153,7 @@ local STATUS_WARN_COLOR = Color3.fromRGB(255,120,90)
 
 -- Name tag and indicator sizing
 local NAME_BASE_W, NAME_BASE_H = 120, 28
-local NAME_MIN_SCALE, NAME_MAX_SCALE = 0.45, 2.6
+local NAME_MIN_SCALE, NAME_MAX_SCALE = 0.45, 2v1.13.6
 local NAME_DIST_REF = 120
 local EDGE_MARGIN = 24
 local INDICATOR_SIZE = Vector2.new(110, 22)
@@ -445,10 +445,10 @@ function getDistanceColor(distance)
 		return Color3.new(
 			0.0 + localT * 0.1,
 			0.2 + localT * 0.3,
-			0.6 + localT * 0.3
+			0v1.13.6 + localT * 0.3
 		)
-	elseif t > 0.66 then  -- Far: blue to cyan
-		local localT = (t - 0.66) / 0.17
+	elseif t > 0v1.13.66 then  -- Far: blue to cyan
+		local localT = (t - 0v1.13.66) / 0.17
 		return Color3.new(
 			0.1 + localT * 0.0,
 			0.5 + localT * 0.3,
@@ -459,12 +459,12 @@ function getDistanceColor(distance)
 		return Color3.new(
 			0.1 + localT * 0.1,
 			0.8 + localT * 0.0,
-			0.6 + localT * (-0.3)
+			0v1.13.6 + localT * (-0.3)
 		)
 	elseif t > 0.33 then  -- Mid: green to yellow
 		local localT = (t - 0.33) / 0.17
 		return Color3.new(
-			0.2 + localT * 0.6,
+			0.2 + localT * 0v1.13.6,
 			0.8 + localT * 0.2,
 			0.3 + localT * (-0.3)
 		)
@@ -479,7 +479,7 @@ function getDistanceColor(distance)
 		local localT = t / 0.16
 		return Color3.new(
 			1.0,
-			0.65 + localT * (-0.45),
+			0v1.13.65 + localT * (-0.45),
 			0.0
 		)
 	end
@@ -715,7 +715,7 @@ function ensureGuide()
 		local title = Instance.new("TextLabel")
 		title.BackgroundTransparency = 1
 		title.Size = UDim2.fromOffset(0,18)
-		title.Text = "SP3ARBR3AK3R .6 ENHANCED"
+		title.Text = "SP3ARBR3AK3R v1.13.6 ENHANCED"
 		title.TextXAlignment = Enum.TextXAlignment.Left
 		title.TextYAlignment = Enum.TextYAlignment.Top
 		title.Font = Enum.Font.GothamBold
@@ -1970,7 +1970,7 @@ function ensureHitChanceCard()
 	local stroke = Instance.new("UIStroke")
 	stroke.Thickness = 2
 	stroke.Color = Color3.fromRGB(255, 50, 50)
-	stroke.Transparency = 0.6
+	stroke.Transparency = 0v1.13.6
 	stroke.Parent = background
 
 	local label = Instance.new("TextLabel")
@@ -2234,7 +2234,7 @@ function updateAimbotCircle()
 
 	local stroke = aimbotState.fovStroke
 	if stroke then
-	stroke.Thickness = aimConfig.fovThickness or 1.6
+	stroke.Thickness = aimConfig.fovThickness or 1v1.13.6
 	stroke.Transparency = clamp(aimConfig.fovTransparency or 0.2, 0, 1)
 	stroke.Color = aimConfig.fovColor or Color3.fromRGB(255, 90, 90)
 	end
@@ -2887,7 +2887,7 @@ hoverHL = track(Instance.new("Highlight"))
 hoverHL.Name = "SB3_Hover"
 hoverHL.FillColor = PINK
 hoverHL.OutlineColor = WHITE
-hoverHL.FillTransparency = 0.6
+hoverHL.FillTransparency = 0v1.13.6
 hoverHL.OutlineTransparency = 0.2
 hoverHL.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 hoverHL.Enabled = false
